@@ -11,8 +11,8 @@ class Molecule():
         #   concentration should be given in decimal form (ppm * 10**-6), use setPPM or setPPB to save doing some math
         self.concentration = concentration
         self.ID = ID
-        self.isotopeList = []
         self.molecularWeight = 0
+        self.isotopeDepth = 1
 
         #   lineList should be left as raw data from the file
         self.lineList = {}
@@ -29,15 +29,9 @@ class Molecule():
         #   use to set ppb, converts to decimal
         self.concentration = ppb * 10**-9
 
-    def hasIsotope(self, i):
-        return i in self.isotopeList
-
-    def addIsotope(self, i):
-        self.isotopeList.append(i)
-
     def getLineList(self, filePath):
         print('Getting line lists for %s'% self.ID)
-        tempDict = ReadFiles.ReadSpectraCalcLineList(filePath, self.ID, self.isotopeList)
+        tempDict = ReadFiles.ReadSpectraCalcLineList(filePath, self.ID, self.isotopeDepth)
         if tempDict:
             print('Success!')
             self.lineList = tempDict
@@ -45,7 +39,7 @@ class Molecule():
             print('No lines available in that file, or incorrect path.')
 
     def getQ(self):
-        self.lineList['Q'] = ReadFiles.readQ(self.ID, self.isotopeList)
+        self.lineList['Q'] = ReadFiles.readQ(self.ID, self.isotopeDepth)
 
 class Layer():
     def __init__(self, thickness, n=0):

@@ -7,15 +7,16 @@ def openReturnLines(fullPath):
     openFile.close()
     return lineList
 
-def ReadSpectraCalcLineList(localPath, molecule, isotopes):
-
-    #convert isotope numbers to strings for comparison
-    i = 0
-    for isotope in isotopes:
-        isotopes[i] = str(isotope)
-        i += 1
+def ReadSpectraCalcLineList(localPath, molecule, isotopeDepth):
 
     rows = openReturnLines(os.getcwd() + localPath)
+    #create a text list of isotopes for comparison
+    i = 1
+    isotopeList = []
+    while i <= isotopeDepth:
+        isotopeList.append(str(i))
+        i += 1
+
     #   column names and locations
     id = 0
     isotope = 1
@@ -32,7 +33,7 @@ def ReadSpectraCalcLineList(localPath, molecule, isotopes):
     #   the csv files are comma-seperated, seperate into cells
     for row in rows:
         cell = row.split(',')
-        if cell[id] == str(molecule) and cell[isotope] in isotopes:
+        if cell[id] == str(molecule) and cell[isotope] in isotopeList:
             #  create a dictionary of the contents without the wavenumber
             contents = {}
             contents['isotope'] = int(cell[isotope])
@@ -51,9 +52,10 @@ def ReadSpectraCalcLineList(localPath, molecule, isotopes):
         lineListDict = False
     return lineListDict
 
-def readQ(ID, isotopes):
+def readQ(ID, isotopeDepth):
     isoDict = {}
-    for isotope in isotopes:
+    isotope = 1
+    while isotope <= isotopeDepth:
         fileName = 'q' + str(ID) + '-' + str(isotope) + '.csv'
         fullPath = os.getcwd() + '/HITRAN/' + fileName
         lines = openReturnLines(fullPath)
@@ -62,5 +64,6 @@ def readQ(ID, isotopes):
             cell = line.split(',')
             qDict[int(cell[0])] = float(cell[1])
         isoDict[int(isotope)] = qDict
+        isotope += 1
 
     return isoDict
