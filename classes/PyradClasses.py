@@ -22,12 +22,16 @@ class Molecule():
 
 
     def setPPM(self, ppm):
-        #   use to set ppm, converts to decimal
+        #   use to set ppm, converts to percentage
         self.concentration = ppm * 10**-6
 
     def setPPB(self, ppb):
-        #   use to set ppb, converts to decimal
-        self.concentration = ppb * 10**-9
+        #   use to set ppb, converts to percentage
+        self.concentration = ppb * 10**-8
+
+    def setConcentrationPercentage(self, perc):
+        #   use to set concentration via a percentage, handy for wv
+        self.setPPM(10000 * perc)
 
     def getLineList(self, filePath):
         print('Getting line lists for %s'% self.ID)
@@ -49,6 +53,7 @@ class Layer():
         self.P = 0
         self.thickness = thickness
         self.centerHeight = 0
+        self.layerComposition = []
 
     def setSpectrum(self, range, steps):
         #   used for setting the array of the spectrum to be analyzed.
@@ -57,6 +62,9 @@ class Layer():
         self.range = range
         self.resolution = steps
         self.spectrum = np.zeros(int((range[1] - range[0])/steps)).tolist()
+
+    def pressurePa(self):
+        return self.P * 100
 
     def getRangeArray(self):
         return np.arange(self.range[0], self.range[1], self.resolution).tolist()
@@ -135,3 +143,11 @@ class Layer():
 
         #   finally, return the final spectrum for this molecule
         return absorptionCoefficient
+
+    def transmitSpectrum(self, moleculeList):
+        transmitted = self.spectrum
+        for molecule in moleculeList:
+            singleMoleculeTransmission = self.absorptionCoefficient(molecule)
+            for i in range(0, len(singleMoleculeTransmission) - 1):
+                transmitted[i] += singleMoleculeTransmission[i]
+        return transmitted

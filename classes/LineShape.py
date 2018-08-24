@@ -1,15 +1,22 @@
 import scipy.constants as sc
 import numpy as np
+import classes.PyradConstants as pr
 
-k = sc.k
-p0 = 1013.25    #   reference pressure for spectral data
-t0 = 296        #   reference temperature for spectral data
+t0 = pr.tRef
+k = pr.k
+c = pr.c
+p0 = pr.pRef
+
+class LineShapeSetting():
+    def __init__(self):
+        self.wingWidth = 0
 
 def gaussianHW(wavenumber, t, m):
     hW = wavenumber * np.sqrt(2 * k * t / m / c**2)
     return hW
 
 def lorentzHW(airHalfWidth, selfHalfWidth, P, T, q, tExponent):
+
     hw = ((1-q) * airHalfWidth + q * selfHalfWidth) * (P / p0) * (t0 / T)**tExponent
     return hw
 
@@ -60,3 +67,17 @@ def broadenLineList(p, lineList):
             newList[newKey] = lineList[key]    #transfers contents of old non-broadened dictionary to dictionary with a new pressure broadened key
 
     return newList, sorted(newList.keys())
+
+def vvLineShape(halfwidth, waveCenter, step):
+    x = waveCenter
+    y = (halfwidth * waveCenter) / (sc.pi * waveCenter) * (1 / (waveCenter**2 + halfwidth**2) + 1/(waveCenter**2 + halfwidth**2))
+    shape = []
+    xRange = []
+    tolerance = y / 500
+    while y > tolerance:
+        shape.append(y)
+        xRange.append(x)
+        x += step
+        y = (halfwidth * x) / (sc.pi * waveCenter) * \
+            (1 / ((x - waveCenter) ** 2 + halfwidth ** 2) + 1 / ((waveCenter + x) ** 2 + halfwidth ** 2))
+    return shape
