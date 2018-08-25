@@ -88,7 +88,7 @@ def V(x, lHW, gHW):
                                                            /np.sqrt(2*np.pi)
 
 if __name__ == '__main__':
-    """a bit of test code  for checking the voigt profile"""
+    """a bit of test code  for checking the voigt profile """
     step = .001
     x = np.arange(-5, 5, step)
     gHW = .25
