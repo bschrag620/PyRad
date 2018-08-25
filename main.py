@@ -14,7 +14,7 @@ co2.isotopeDepth = 2
 #   set the concentration of the molecule
 co2.setPPM(350)
 #   give a file path
-co2.getLineList('/spectraCalc/linelist.csv')
+co2.getLineList('/HITRAN/linelist.csv')
 #   the Qfile comes from HITRAN and typically needs to be formatted to allow for easy parsing.
 #   Format of the name needs to be q{molecule_id}-{isotope_number}.csv. It will be looked for in the HITRAN folder
 co2.getQ()
@@ -23,8 +23,8 @@ co2.getQ()
 h2o = PRC.Molecule(1)
 h2o.isotopeDepth = 2
 h2o.molecularWeight = 18
-h2o.setConcentrationPercentage(4)
-h2o.getLineList('/spectraCalc/linelist.csv')
+h2o.setPPM(1000000)
+h2o.getLineList('/HITRAN/linelist.csv')
 h2o.getQ()
 
 #   creating a layer with 1cm thickness
@@ -32,18 +32,18 @@ layer = PRC.Layer(10)
 #   setting layer temp
 layer.T = 296
 #   set layer composition
-layer.layerComposition = [co2]
+layer.layerComposition = [h2o]
 #   creating a spectrum array for the layer. Basically the beginning and end ranges with steps based on the resolution.
-layer.setSpectrum([2000, 2100], .001)
+layer.setSpectrum([200, 300], .001)
 #   setting layer pressure
-layer.P = 101.325
+layer.P = 1013.25
 #   creates the x-axis for the plot
 xAxis = layer.getRangeArray()
 
 #   creates the absorption coefficient curve for the spectrum
 abCoef = np.array(layer.transmitSpectrum(layer.layerComposition))
 #   convert absorption coefficient to transmittance of the layer
-transmittance = np.exp(-abCoef * co2.concentration * layer.pressurePa() * layer.thickness / 1000000 / k / layer.T)
+transmittance = np.exp(-abCoef * co2.concentration * layer.pressurePa() * layer.thickness / 1E6 / k / layer.T)
 #transmittance = np.exp(-abCoef * layer.thickness)
 plt.margins(.02)
 plt.plot(xAxis, transmittance, 'orange', linewidth = .5)

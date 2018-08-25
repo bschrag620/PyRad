@@ -35,7 +35,7 @@ class Molecule():
 
     def getLineList(self, filePath):
         print('Getting line lists for %s'% self.ID)
-        tempDict = ReadFiles.ReadSpectraCalcLineList(filePath, self.ID, self.isotopeDepth)
+        tempDict = ReadFiles.readHITRANLineList(filePath, self.ID, self.isotopeDepth)
         if tempDict:
             print('Success!')
             self.lineList = tempDict
@@ -95,26 +95,22 @@ class Layer():
 
         #   now that we are to the correct spot in the list, start to calculate the line shape for each
         #   for starters, decide if we are doing gaussian or lorentz based on pressure
+        linesCounted = 0
         while molecule.orderedList[index] <= self.range[1]:
             absoprtionLine = molecule.orderedList[index]
+            print(linesCounted)
+            linesCounted += 1
             lineDict = molecule.activeLineList[absoprtionLine]
             isotope = lineDict['isotope']
             qDict = molecule.lineList['Q'][isotope]
             #   lorentz halfwidth requires self and foreign broadened coefficients,
             #   pressure, molecule composition, layer temp, and temperature dependance factor.
-            if self.P >= .08:
-                halfwidth = LineShape.lorentzHW(lineDict['airHalfWidth'], lineDict['selfHalfWidth'], self.P, self.T,
+            lhalfwidth = LineShape.lorentzHW(lineDict['airHalfWidth'], lineDict['selfHalfWidth'], self.P, self.T,
                                                 molecule.concentration, lineDict['tempExponent'])
-                #   now get the line shape. These line shapes are symettric, so we will calculate them from center to
-                #   the right edge at a point that is within 1/500 of the starting height. This value can be tweaked in LineShape.lorzentzLineShape
-                rightCurve = LineShape.lorentzLineShape(halfwidth, self.resolution)
+            ghalfwidth = LineShape.gaussianHW(absoprtionLine, self.T, molecule.molecularWeight)
 
-            #   similar to above, get the line shape for a gaussian curve if the pressure is less than .01
-            else:
-                halfwidth = LineShape.gaussianHW(absoprtionLine, self.T, molecule.molecularWeight)
+            rightCurve = LineShape.pseudoVoigtShape(ghalfwidth, lhalfwidth, self.resolution)
 
-                #similar to the lorentz curve from above, get the right half of the curve
-                rightCurve = LineShape.gaussianLineShape(halfwidth, self.resolution)
 
             #   calculate the spectral intensity factor of the curve
             intensity = Intensity.intensityFactor(lineDict['intensity'], absoprtionLine, self.T, lineDict['lowerEnergy'],
@@ -124,6 +120,7 @@ class Layer():
             arrayIndex = int((absoprtionLine - self.range[0]) / self.resolution)
 
             #   loop through the array, adding the values to the transmitted spectrum array * intensity
+
             absorptionCoefficient[arrayIndex] = absorptionCoefficient[arrayIndex] + rightCurve[0] * intensity
             c = 1
             for c in range(1, len(rightCurve) - 1):
