@@ -4,48 +4,42 @@ import numpy as np
 import scipy.constants as sc
 
 k = sc.k
-#   molecule number needs to match what is in the spectracalc or HITRAN file
-co2 = PRC.Molecule(2)
-#   need a good resource to pull this data from rather than hard coding
+filepath = '/HITAN/linelist.csv'
+
+"""Start by creating a layer. Arguments required are (depth{cm}, temperature{K}, pressure{mbar})"""
+layer = PRC.Layer(1, 296, 1013.25)
+
+"""Next, set the viewing range for the layer. Can also define resolution. Default is .001, going less than that will lose detail"""
+layer.setSpectrum([200, 300])
+
+"""Create a molecule variable while simultaneously adding it to the layer. The arguments pass to .addMolecule are the ('text name',
+molecule ID{from HITRAN}, isotopeDepth{defaults to 1}). For nearly all molecules in the atmosphere, an isotopeDepth of 1 usually 
+covers 99%+. Adding depth will add many more lines to be calculated at little gain of accuracy, but the option is available."""
+co2 = layer.addMolecule('co2', 2)
+
+"""Finally, set the molecular weight and ppm of the molecule. Currently don't have a file that contains molecular weights. This would
+be a great addition. Isotope weights can vary as well. Guassian curves rely on molecular weight"""
 co2.molecularWeight = 44
-#   control how many isotopes are pulled. The linelists breakdown absorption bands by isotope 1-n, with 1 being the most abundant
-#   Higher isotopeDepth, more absorption bands, more accuracy, more processing...choose wisely
-co2.isotopeDepth = 2
-#   set the concentration of the molecule
-co2.setPPM(350)
-#   give a file path
+co2.setPPM(400)
+
+"""Build a linelist for co2 and get the Q partition function numbers. For more info on these files, look at the comments at .getQ()"""
 co2.getLineList('/HITRAN/linelist.csv')
-#   the Qfile comes from HITRAN and typically needs to be formatted to allow for easy parsing.
-#   Format of the name needs to be q{molecule_id}-{isotope_number}.csv. It will be looked for in the HITRAN folder
 co2.getQ()
 
-#   add h2o in similar fashion
-h2o = PRC.Molecule(1)
-h2o.isotopeDepth = 2
+h2o = layer.addMolecule('h2o', 1)
 h2o.molecularWeight = 18
-h2o.setPPM(1000000)
+h2o.concentration = .04
 h2o.getLineList('/HITRAN/linelist.csv')
 h2o.getQ()
 
-#   creating a layer with 1cm thickness
-layer = PRC.Layer(10)
-#   setting layer temp
-layer.T = 296
-#   set layer composition
-layer.layerComposition = [h2o]
-#   creating a spectrum array for the layer. Basically the beginning and end ranges with steps based on the resolution.
-layer.setSpectrum([200, 300], .001)
-#   setting layer pressure
-layer.P = 1013.25
-#   creates the x-axis for the plot
-xAxis = layer.getRangeArray()
-
 #   creates the absorption coefficient curve for the spectrum
-abCoef = np.array(layer.transmitSpectrum(layer.layerComposition))
+layer.createCrossSection()
+layer.createAbsorptionCoefficient()
+trans = layer.createTransmittance()
 #   convert absorption coefficient to transmittance of the layer
-transmittance = np.exp(-abCoef * co2.concentration * layer.pressurePa() * layer.thickness / 1E6 / k / layer.T)
+# transmittance = np.exp(-co2.crossSection * co2.concentration * layer.pressurePa() * layer.depth / 1E6 / k / layer.T)
 #transmittance = np.exp(-abCoef * layer.thickness)
 plt.margins(.02)
-plt.plot(xAxis, transmittance, 'orange', linewidth = .5)
+plt.plot(layer.xAxis, trans, 'orange', linewidth = .5)
 #plt.title(text)
 plt.show()

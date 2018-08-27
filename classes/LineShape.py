@@ -39,7 +39,7 @@ def pseudoVoigtShape(gHW, lHW, step):
     l = 2 * lHW
     f = (g**5 + 2.69269 * g**4 * l + 2.42843 * g**3 * l**2 + 4.47163 * g**2 * l**3 + .07842 * g * l**4 + l**5)**(.2)
     n = 1.36603 * (l / f) - .47719 * (l / f)**2 + .11116 * (l / f)**3
-    curveLength = np.arange(0, 4, step)
+    curveLength = np.arange(0, 1, step)
     gCurve = gaussianLineShape(f / 2, curveLength)
     lCurve = lorentzLineShape(f / 2, curveLength)
     psuedoVoigt = n * lCurve + (1 - n) * gCurve
