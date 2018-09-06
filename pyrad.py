@@ -29,6 +29,7 @@ class Molecule:
         self.linelist = self.info['linelist']
         self.crossSection = np.array([])
         self.absCoefficient = np.array([])
+        self.progressCrossSection = False
 
     def setPPM(self, ppm):
         #   use to set ppm, converts to percentage
@@ -74,6 +75,7 @@ class Molecule:
                 if leftIndex > 0:
                     crossSection[leftIndex] += rightCurve[c] * intensity
         self.crossSection = crossSection
+        self.progressCrossSection = True
         return self.crossSection
 
     def createAbsorptionCoefficient(self, P, T):
@@ -87,10 +89,11 @@ class Molecule:
         return transmittance
 
 
-def totalConcentration(*molecules):
+def totalConcentration(molecules):
     total = 0
     print(molecules)
     for molecule in molecules:
+        print(molecule)
         total += molecule.concentration
     return total
 
@@ -113,6 +116,8 @@ class Layer:
         self.absCoef = self.yAxis
         self.transmittance = self.yAxis
         self.absorbance = self.yAxis
+        self.progressAbsCoef = False
+        self.progressTransmittance = False
         if not name:
             name = 'layer %s' % Layer.layerList.index(self)
         self.name = name
@@ -122,30 +127,47 @@ class Layer:
             print('Processing cross section for %s' % molecule.name)
             molecule.createCrossSection(self, distanceFromCenter)
 
+    def getData(self):
+        for molecule in self.layerComposition:
+            molecule.getData(self)
+
     def addMolecules(self, *molecules):
         for molecule in molecules:
             self.layerComposition.append(molecule)
         if totalConcentration(molecules) > 1:
             print('**Warning : Concentrations exceed 1.')
 
-    def createAbsorptionCoefficient(self):
+    def createAbsorptionCoefficient(self, distanceFromCenter=1):
+        for molecule in self.layerComposition:
+            if not molecule.progressCrossSection:
+                print('Absorption cross section for %s not yet processed, backtracking to crossSection...' % molecule.name)
+                molecule.createCrossSection(self, distanceFromCenter)
         print('Creating absorption coefficient for %s' % self.name)
         for molecule in self.layerComposition:
             self.absCoef += molecule.createAbsorptionCoefficient(self.pressurePa, self.T)
+        self.progressAbsCoef = True
         return self.absCoef
 
-    def createTransmittance(self):
+    def createTransmittance(self, distanceFromCenter=1):
+        if not self.progressAbsCoef:
+            print('Absorption coefficient not processed, backtracking to absorptionCoefficient')
+            self.createAbsorptionCoefficient(distanceFromCenter)
         self.transmittance = np.exp(-self.absCoef * self.depth)
+        self.progressTransmittance = True
         return self.transmittance
 
     def addMolecule(self, name, ID, isotopeDepth=1):
         molecule = Molecule(name, ID, isotopeDepth)
         self.layerComposition.append(molecule)
-       # if totalConcentration(self.layerComposition) > 1:
-       #     print('**Warning : Concentrations exceed 1.')
+        print("layer compositions: ", self.layerComposition)
+        if totalConcentration(self.layerComposition) > 1:
+            print('**Warning : Concentrations exceed 1.')
         return molecule
 
     def createAbsorbance(self):
+        if not self.progressTransmittance:
+            print('Transmittance not processed, backtracking to absorptionCoefficient...')
+            self.createTransmittance()
         self.absorbance = np.log(1 / self.transmittance)
 
 
