@@ -16,10 +16,10 @@ def getGlobalIsotope(ID, isotopeDepth):
 
 
 class Molecule:
-    def __init__(self, name, ID, isotopeDepth=1):
+    def __init__(self, name, ID, molecularWeight, isotopeDepth=1, **abundance):
         self.name = name
         self.ID = ID
-        self.molecularWeight = 0
+        self.molecularWeight = molecularWeight
         self.isotopeDepth = isotopeDepth
         self.isoList = getGlobalIsotope(self.ID, self.isotopeDepth)
         self.info = {'linelist': {},
@@ -30,6 +30,20 @@ class Molecule:
         self.crossSection = np.array([])
         self.absCoefficient = np.array([])
         self.progressCrossSection = False
+        for key in abundance:
+            if key == 'ppm':
+                self.setPPM(abundance[key])
+            elif key == 'ppb':
+                self.setPPB(abundance[key])
+            elif key == 'percentage':
+                self.setPercentage(abundance[key])
+            elif key == 'concentration':
+                self.concentration = abundance[key]
+            else:
+                print('Invalid concentration type. Use ppm, ppb, percentage, or concentration.')
+
+    def setPercentage(self, perc):
+        self.concentration = perc / 100
 
     def setPPM(self, ppm):
         #   use to set ppm, converts to percentage
@@ -91,9 +105,7 @@ class Molecule:
 
 def totalConcentration(molecules):
     total = 0
-    print(molecules)
     for molecule in molecules:
-        print(molecule)
         total += molecule.concentration
     return total
 
@@ -159,7 +171,6 @@ class Layer:
     def addMolecule(self, name, ID, isotopeDepth=1):
         molecule = Molecule(name, ID, isotopeDepth)
         self.layerComposition.append(molecule)
-        print("layer compositions: ", self.layerComposition)
         if totalConcentration(self.layerComposition) > 1:
             print('**Warning : Concentrations exceed 1.')
         return molecule

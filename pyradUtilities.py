@@ -161,4 +161,14 @@ def readHitranOnlineFile(path, waveMin, waveMax):
     return lineListDict
 
 
+GREETING = "***********************           PyRad ver 1           ***********************\n" \
+           "An open-source, amateur attempt at a radiative transfer model for an atmosphere\n\n" \
+           "\tAll line lists are downloaded from HITRAN\n" \
+           "\tAll information for calculation of lineshapes comes \n" \
+           "\tfrom spectralcalc.com and hitran.org \n" \
+           "\tFor a more complete option, check out HAPI from HITRAN.\n" \
+           "\tThanks to those you have made the information available \n" \
+           "\tand so easily accessible.\n\n" \
+           "*******************************************************************************"
+print(GREETING)
 setupDir()
