@@ -48,7 +48,7 @@ def gatherData(globalIsoId, rangeMin, rangeMax):
             os.makedirs(globalIsoDir)
         filePath = '%s/%s/%s.pyr' % (dataDir, globalIsoId, segment)
         if not os.path.isfile(filePath):
-            print('File not found for %s, range %s-%s. Download from HITRAN...' % (globalIsoId, segment, segment + 100))
+            print('File not found for %s, range %s-%s. Downloading from HITRAN...' % (globalIsoId, segment, segment + 100))
             downloadHitran(filePath, globalIsoId, segment, segment + 100)
         info.update(readHitranOnlineFile(filePath, rangeMin, rangeMax))
         getQData(globalIsoId)
@@ -102,19 +102,26 @@ def downloadHitran(path, globalID, waveMin, waveMax):
     try:
         request = urlrequest.urlopen(url)
     except urlrequest.HTTPError:
-        raise Exception('Can not retrieve data for given parameters')
+        print('Can not retrieve data for given parameters.')
+        request = False
     except urlrequest.URLError:
-        raise Exception('Can not connect to %s' % str(url))
-    print('Downloading linelist data from http://hitran.org')
-    openFile = open(path, 'w')
-    chunkSize = 1024 * 64
-    while True:
-        chunk = request.read(chunkSize)
-        if not chunk:
-            break
-        openFile.write(chunk.decode('utf-8'))
-        print('%s downloaded and written to %s' % (chunkSize, path))
-    openFile.close()
+        print('Can not connect to %s' % str(url))
+        request = False
+    print('Connected to http://hitran.org, beginning download.')
+    dirLength = len(cwd)
+    if request:
+        i = 0
+        openFile = open(path, 'w')
+        chunkSize = 1024 * 64
+        while True:
+            i += 1
+            chunk = request.read(chunkSize)
+            if not chunk:
+                break
+            openFile.write(chunk.decode('utf-8'))
+            print('%s downloaded and written to %s%s' % (chunkSize, path[dirLength:], '.' * i), end='\r', flush=True)
+        print('\n', end='\r')
+        openFile.close()
 
 
 def readQ(ID, isotopeDepth):
