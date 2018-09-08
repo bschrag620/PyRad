@@ -51,7 +51,7 @@ Questions or bugs, email brad.schrag@gmail.com
 """
 
 
-layer = pyrad.Layer(10, 300, 101.325, 640, 670)
+layer = pyrad.Layer(10, 300, 10132.5, 600, 700)
 co2 = pyrad.Molecule('co2', 44, ppm=400)
 h2o = pyrad.Molecule('h2o', 18, percentage=.4)
 ozone = pyrad.Molecule('o3', 48, ppb=10)
