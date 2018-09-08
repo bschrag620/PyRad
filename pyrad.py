@@ -27,9 +27,9 @@ def totalConcentration(molecules):
 
 
 class Molecule:
-    def __init__(self, name, ID, molecularWeight, isotopeDepth=1, **abundance):
+    def __init__(self, name, molecularWeight, isotopeDepth=1, **abundance):
         self.name = name
-        self.ID = ID
+        self.ID = MOLECULE_ID[name]
         self.molecularWeight = molecularWeight
         self.isotopeDepth = isotopeDepth
         self.isoList = getGlobalIsotope(self.ID, self.isotopeDepth)
@@ -166,7 +166,7 @@ class Molecule:
         return self.absorbance
 
 
-class Layer:
+class Layer(list):
     layerList = []
 
     def __init__(self, depth, T, P, rangeMin, rangeMax, name=False):
@@ -177,7 +177,6 @@ class Layer:
         self.depth = depth
         self.distanceFromCenter = self.P / 1013.25 * 4
         self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
-        self.layerComposition = []
         Layer.layerList.append(self)
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
@@ -195,28 +194,25 @@ class Layer:
         self.name = name
 
     def __str__(self):
-        return '%s; %s' % (self.name, '; '.join(str(m) for m in self.layerComposition))
-
-    def __name__(self):
-        return 'LayerObject'
+        return '%s; %s' % (self.name, '; '.join(str(m) for m in self))
 
     def createCrossSection(self):
         if not self.progressGetData:
             self.getData()
-        for molecule in self.layerComposition:
+        for molecule in self:
             print('Processing cross section for %s' % molecule.name)
             self.crossSection += molecule.createCrossSection()
         self.progressCrossSection = True
         return self.crossSection
 
     def getData(self):
-        for molecule in self.layerComposition:
+        for molecule in self:
             molecule.getData()
         self.progressGetData = True
 
     def addMolecules(self, *molecules):
         for molecule in molecules:
-            self.layerComposition.append(molecule)
+            self.append(molecule)
             molecule.setParentLayer(self)
         if totalConcentration(molecules) > 1:
             print('**Warning : Concentrations exceed 1.')
@@ -224,12 +220,12 @@ class Layer:
     def createAbsCoef(self):
         if not self.progressCrossSection:
             self.createCrossSection()
-        for molecule in self.layerComposition:
+        for molecule in self:
             if not molecule.progressCrossSection:
                 print('Absorption cross section for %s not yet processed, backtracking to crossSection...' % molecule.name)
                 molecule.createCrossSection()
         print('Creating absorption coefficient for %s' % self.name)
-        for molecule in self.layerComposition:
+        for molecule in self:
             self.absCoef += molecule.createAbsorptionCoefficient()
         self.progressAbsCoef = True
         return self.absCoef
@@ -242,11 +238,11 @@ class Layer:
         self.progressTransmittance = True
         return self.transmittance
 
-    def addMolecule(self, name, ID, isotopeDepth=1):
-        molecule = Molecule(name, ID, isotopeDepth)
-        self.layerComposition.append(molecule)
+    def addMolecule(self, name, isotopeDepth=1, **abundance):
+        molecule = Molecule(name, isotopeDepth, **abundance)
+        self.append(molecule)
         molecule.setParentLayer(self)
-        if totalConcentration(self.layerComposition) > 1:
+        if totalConcentration(self) > 1:
             print('**Warning : Concentrations exceed 1.')
         return molecule
 
@@ -277,20 +273,19 @@ def returnPlot(obj, propertyToPlot):
             obj.createAbsorbance()
         yAxis = obj.absorbance, 0
     else:
-        print('Invalid plot type. Choose "transmittance", "absorption coefficient", "cross section", or "absorbance".')
         return False
     return yAxis
 
 
-def isBetween(test, min, max):
-    if test >= min:
-        if test <= max:
+def isBetween(test, minValue, maxValue):
+    if test >= minValue:
+        if test <= maxValue:
             return True
     return False
 
 
 def plot(obj, propertyToPlot, individualColors=False, fill=True):
-    plt.figure(figsize=(10,6), dpi=80)
+    plt.figure(figsize=(10, 6), dpi=80)
     plt.subplot(111, facecolor='xkcd:dark grey')
     plt.xlabel('wavenumber cm-1')
     plt.margins(0.01)
@@ -303,19 +298,16 @@ def plot(obj, propertyToPlot, individualColors=False, fill=True):
     plt.fill_between(obj.xAxis, fillAxis, yAxis, color='w', alpha=.3 * fill)
     handles = [fig]
     if type(yAxis) is bool:
+        print('Invalid plot type. Choose "transmittance", "absorption coefficient", "cross section", or "absorbance".')
         return False
-    if individualColors:
-        if type(obj) is not Layer:
-            print('Printing individual colors can only be done with layers, not single molecules.')
-        else:
-
-            if len(obj.layerComposition) > 6:
-                print('More than 6 elements, only processing first 6...')
-            for molecule, color in zip(obj.layerComposition, COLOR_LIST):
-                yAxis, fillAxis = returnPlot(molecule, propertyToPlot)
-                fig, = plt.plot(obj.xAxis, yAxis, linewidth=1, color=color, alpha=.8, label='%s' % molecule.name)
-                handles.append(fig)
-                plt.fill_between(obj.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
+    if individualColors and isinstance(obj, list):
+        if len(obj) > 6:
+            print('More than 6 elements, only processing first 6...')
+        for molecule, color in zip(obj, COLOR_LIST):
+            yAxis, fillAxis = returnPlot(molecule, propertyToPlot)
+            fig, = plt.plot(obj.xAxis, yAxis, linewidth=1, color=color, alpha=.8, label='%s' % molecule.name)
+            handles.append(fig)
+            plt.fill_between(obj.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')
@@ -455,3 +447,16 @@ COLOR_LIST = ['xkcd:bright orange',
               'xkcd:salmon',
               'xkcd:light violet',
               'xkcd:green yellow']
+
+MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
+               'ch4': 6, 'o2': 7, 'no': 8, 'so2': 9,
+               'no2': 10, 'nh3': 11, 'hno3': 12, 'oh': 13,
+               'hf': 14, 'hcl': 15, 'hbr': 16, 'hi': 17,
+               'clo': 18, 'ocs': 19, 'h2co': 20, 'hocl': 21,
+               'n2': 22, 'hcn': 23, 'ch3cl': 24, 'h2o2': 25,
+               'c2h2': 26, 'c2h6': 27, 'ph3': 28, 'cof2': 29,
+               'sf6': 30, 'h2s': 31, 'hcooh': 32, 'ho2': 33,
+               'o': 34, 'clono2': 35, 'no+': 36, 'hobr': 37,
+               'c2h4': 38, 'ch3oh': 39, 'ch3br': 40, 'ch3cn': 41,
+               'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
+               'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
