@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import scipy.constants as sc
 
 k = sc.k
-
+p0 = 1013.25
 
 def progressAlert():
     pass
@@ -19,39 +19,233 @@ def getGlobalIsotope(ID, isotopeDepth):
     return globalIsoList
 
 
-def totalConcentration(molecules):
+def printProgress(text, obj):
+    layerName = obj.layer.name
+    molName = obj.molecule.name
+    isoName = obj.name
+    print('Processing %s: %s; %s; isotope %s' % (text, layerName, molName, isoName))
+
+
+def totalConcentration(layer):
     total = 0
-    for molecule in molecules:
+    for molecule in layer:
         total += molecule.concentration
     return total
 
 
-class Molecule:
-    def __init__(self, name, molecularWeight, isotopeDepth=1, **abundance):
-        self.name = name
-        self.ID = MOLECULE_ID[name]
-        self.molecularWeight = molecularWeight
-        self.isotopeDepth = isotopeDepth
-        self.isoList = getGlobalIsotope(self.ID, self.isotopeDepth)
-        self.info = {'linelist': {},
-                     'q': {}}
-        self.q = self.info['q']
-        self.P = 0
-        self.T = 0
-        self.depth = 0
+def totalLineList(obj):
+    fullList = []
+    if isinstance(obj, Isotope):
+        return obj.linelist()
+    for item in obj:
+        fullList += totalLineList(item)
+    return fullList
+
+
+class Line:
+    def __init__(self, wavenumber, intensity, einsteinA, airHalfWidth,
+                 selfHalfWidth, lowerEnergy, tempExponent, pressureShift, parent):
+        self.isotope = parent
+        self.molecule = self.isotope.molecule
+        self.layer = self.molecule.layer
+        self.wavenumber = wavenumber
+        self.intensity = intensity
+        self.einsteinA = einsteinA
+        self.airHalfWidth = airHalfWidth
+        self.selfHalfWidth = selfHalfWidth
+        self.lowerEnergy = lowerEnergy
+        self.tempExponent = tempExponent
+        self.pressureShift = pressureShift
+
+    def broadenedLine(self):
+        broadenedLine = self.wavenumber + self.pressureShift * self.layer.P / p0
+        return broadenedLine
+
+    def lorentzHW(self):
+        hw = ls.lorentzHW(self.airHalfWidth, self.selfHalfWidth, self.layer.P, self.layer.T, self.molecule.concentration, self.tempExponent)
+        return hw
+
+    def gaussianHW(self, broadenedLine):
+        hw = ls.gaussianHW(broadenedLine, self.layer.T, self.isotope.molMass)
+        return hw
+
+
+class CrossSection:
+    def __init__(self, globalIso, layer, array):
+        pass
+
+
+class Isotope(list):
+    def __init__(self, number, parent):
+        super().__init__(self)
+        params = utils.readMolParams(number)
+        self.globalIsoNumber = params[0]
+        self.shortName = params[1]
+        self.name = 'Isotope %s' % self.globalIsoNumber
+        self.molNum = params[2]
+        self.isoN = params[3]
+        self.abundance = params[4]
+        self.q296 = params[5]
+        self.gj = params[6]
+        self.molMass = params[7]
+        self.molecule = parent
+        self.q = {}
+        self.xAxis = self.molecule.xAxis
+        self.yAxis = self.molecule.yAxis
+        self.crossSection = self.yAxis
+        self.absCoef = self.yAxis
+        self.transmittance = self.yAxis
+        self.absorbance = self.yAxis
+        self.emissivity = self.yAxis
+        self.progressTransmittance = False
+        self.progressAbsCoef = False
+        self.progressCrossSection = False
+        self.progressGetData = False
+        self.layer = self.molecule.layer
+
+    @property
+    def P(self):
+        return self.layer.P
+
+    @property
+    def T(self):
+        return self.layer.T
+
+    @property
+    def depth(self):
+        return self.layer.depth
+
+    @property
+    def rangeMin(self):
+        return self.layer.rangeMin
+
+    @property
+    def rangeMax(self):
+        return self.layer.rangeMax
+
+    @property
+    def resolution(self):
+        return self.layer.resolution
+
+    @property
+    def distanceFromCenter(self):
+        return self.layer.distanceFromCenter
+
+    def getData(self):
+        print('Getting data for %s, isotope #%s' % (self.molecule.name, self.globalIsoNumber))
+        lineDict = utils.gatherData(self.globalIsoNumber, self.rangeMin, self.rangeMax)
+        self.q = utils.getQData(self.globalIsoNumber)
+        for line in lineDict:
+            self.append(Line(line, lineDict[line]['intensity'], lineDict[line]['einsteinA'],
+                             lineDict[line]['airHalfWidth'], lineDict[line]['selfHalfWidth'],
+                             lineDict[line]['lowerEnergy'], lineDict[line]['tempExponent'],
+                             lineDict[line]['pressureShift'], self))
+        self.progressGetData = True
+
+    def createCrossSection(self):
+        molecule = self.molecule
+        layer = molecule.layer
+        progress = 0
+        i = 1
+        alertInterval = int(len(self) / 20)
+        crossSection = np.zeros(int((layer.rangeMax - layer.rangeMin) / layer.resolution))
+        for line in self:
+            print('Progress  <%s%s>\t nu=%s' % ('*' * i, '-' * (20 - i), line.wavenumber), end='\r', flush=True)
+            if progress > i * alertInterval:
+                i += 1
+            progress += 1
+            broadenedLine = line.broadenedLine()
+            lhalfwidth = line.lorentzHW()
+            ghalfwidth = line.gaussianHW(broadenedLine)
+            rightCurve = ls.pseudoVoigtShape(ghalfwidth, lhalfwidth, layer.resolution, layer.distanceFromCenter)
+            intensity = pyradIntensity.intensityFactor(
+                line.intensity, broadenedLine, layer.T, line.lowerEnergy, self.q[layer.T], self.q296)
+            arrayIndex = int((line.wavenumber - layer.rangeMin) / layer.resolution)
+            arrayLength = len(crossSection) - 1
+            if isBetween(arrayIndex, 0, arrayLength):
+                crossSection[arrayIndex] = crossSection[arrayIndex] + rightCurve[0] * intensity
+            for c in range(1, len(rightCurve) - 1):
+                rightIndex = arrayIndex + c
+                leftIndex = arrayIndex - c
+                if isBetween(rightIndex, 0, arrayLength):
+                    crossSection[rightIndex] += rightCurve[c] * intensity
+                if isBetween(leftIndex, 0, arrayLength):
+                    crossSection[leftIndex] += rightCurve[c] * intensity
+        self.crossSection = crossSection
+        self.progressCrossSection = True
+        return self.crossSection
+
+    def linelist(self):
+        lines = []
+        for line in self:
+            lines.append(line)
+        return lines
+
+    def createAbsorptionCoefficient(self):
+        molecule = self.molecule
+        layer = molecule.layer
+        if not self.progressCrossSection:
+            self.createCrossSection()
+        self.absCoef = self.crossSection * molecule.concentration * layer.P / 1E4 / k / layer.T
+        self.progressAbsCoef = True
+        return self.absCoef
+
+    def createTransmittance(self):
+        molecule = self.molecule
+        if not self.progressAbsCoef:
+            self.createAbsorptionCoefficient()
+        self.transmittance = np.exp(-self.absCoef * molecule.depth)
+        self.progressTransmittance = True
+        return self.transmittance
+
+    def createAbsorbance(self):
+        if not self.progressTransmittance:
+            self.createTransmittance()
+        self.absorbance = np.log(1 / self.transmittance)
+        return self.absorbance
+
+    def createEmissivity(self):
+        if not self.progressTransmittance:
+            self.createTransmittance()
+        self.emissivity = 1 - self.transmittance
+        return self.emissivity
+
+
+class Molecule(list):
+    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
+        super().__init__(self)
+        self.yAxis = layer.yAxis
+        self.xAxis = layer.xAxis
+        self.layer = layer
+        self.crossSection = self.yAxis
+        self.absCoef = self.yAxis
+        self.transmittance = self.yAxis
+        self.absorbance = self.yAxis
+        self.emissivity = self.yAxis
+        try:
+            int(shortNameOrMolNum)
+            testNumber = True
+        except:
+            testNumber = False
+        if testNumber:
+            self.ID = int(shortNameOrMolNum)
+            self.name = False
+        else:
+            self.name = shortNameOrMolNum
+            self.ID = MOLECULE_ID[self.name]
+        for isotope in getGlobalIsotope(self.ID, isotopeDepth):
+            isoClass = Isotope(isotope, self)
+            self.append(isoClass)
+            if not self.name:
+                self.name = isoClass.shortName
+            else:
+                self.ID = isoClass.molNum
         self.concentration = 0
-        self.linelist = self.info['linelist']
-        self.crossSection = np.array([])
-        self.xAxis = np.array([])
-        self.absCoef = np.array([])
-        self.transmittance = np.array([])
-        self.absorbance = np.array([])
         self.progressGetData = False
         self.progressCrossSection = False
         self.progressTransmittance = False
         self.progressAbsCoef = False
         self.progressAbsorbance = False
-        self.parent = None
         for key in abundance:
             if key == 'ppm':
                 self.setPPM(abundance[key])
@@ -71,62 +265,41 @@ class Molecule:
     def __str__(self):
         return '%s: %s' % (self.name, self.concText)
 
-    def setPercentage(self, perc):
-        self.concentration = perc / 100
+    def setPercentage(self, percentage):
+        self.concentration = percentage / 100
 
     def setPPM(self, ppm):
-        #   use to set ppm, converts to percentage
         self.concentration = ppm * 10**-6
 
     def setPPB(self, ppb):
-        #   use to set ppb, converts to percentage
         self.concentration = ppb * 10**-8
 
     def setConcentrationPercentage(self, percentage):
-        #   use to set concentration via a percentage, handy for wv
         self.setPPM(10000 * percentage)
 
     def getData(self):
-        layer = self.parent
-        print('Getting data for %s' % self.name)
-        for isotope in self.isoList:
-            self.linelist.update(utils.gatherData(isotope, layer.rangeMin, layer.rangeMax))
-            self.q[isotope] = utils.getQData(isotope)
+        for isotope in self:
+            isotope.getData()
         self.progressGetData = True
 
-    def setParentLayer(self, layer):
-        self.parent = layer
-        self.P = layer.P
-        self.T = layer.T
-        self.depth = layer.depth
-        self.xAxis = layer.xAxis
-
     def createCrossSection(self):
-        if not self.progressGetData:
-            self.getData()
-        layer = self.parent
         progress = 0
         i = 1
-        alertInterval = int(len(self.linelist) / 20)
-        crossSection = np.zeros(int((layer.rangeMax - layer.rangeMin) / layer.resolution))
-        for absoprtionLine in self.linelist:
-            print('Progress  <%s%s>\t nu=%s' % ('*' * i, '-' * (20 - i), absoprtionLine), end='\r', flush=True)
+        crossSection = np.zeros(int((self.rangeMax - self.rangeMin) / self.resolution))
+        lineList = totalLineList(self)
+        alertInterval = max(int(len(lineList) / 20), 20)
+        for line in lineList:
+            print('Progress <%s%s>\t nu=%s' % ('*' * i, '-' * (20 - i), line.wavenumber), end='\r', flush=True)
             if progress > i * alertInterval:
                 i += 1
             progress += 1
-            lineDict = self.linelist[absoprtionLine]
-            broadenedLine = ls.broadenLineList(layer.P, absoprtionLine, lineDict['pressureShift'])
-            isotope = lineDict['isotope']
-            globalIso = self.isoList[isotope - 1]
-            qDict = self.q[globalIso]
-            lhalfwidth = ls.lorentzHW(lineDict['airHalfWidth'], lineDict['selfHalfWidth'],
-                                      layer.P, layer.T, self.concentration, lineDict['tempExponent'])
-            ghalfwidth = ls.gaussianHW(broadenedLine, layer.T, self.molecularWeight)
-            rightCurve = ls.pseudoVoigtShape(ghalfwidth, lhalfwidth, layer.resolution, layer.distanceFromCenter)
-            intensity = pyradIntensity.intensityFactor(lineDict['intensity'], broadenedLine, layer.T,
-                                                       lineDict['lowerEnergy'],
-                                                       qDict[layer.T], qDict[296])
-            arrayIndex = int((absoprtionLine - layer.rangeMin) / layer.resolution)
+            broadenedLine = line.broadenedLine()
+            lhalfwidth = line.lorentzHW()
+            ghalfwidth = line.gaussianHW(broadenedLine)
+            rightCurve = ls.pseudoVoigtShape(ghalfwidth, lhalfwidth, self.resolution, self.distanceFromCenter)
+            intensity = pyradIntensity.intensityFactor(
+                line.intensity, broadenedLine, self.T, line.lowerEnergy, line.isotope.q[self.T], line.isotope.q296)
+            arrayIndex = int((line.wavenumber - self.rangeMin) / self.resolution)
             arrayLength = len(crossSection) - 1
             if isBetween(arrayIndex, 0, arrayLength):
                 crossSection[arrayIndex] = crossSection[arrayIndex] + rightCurve[0] * intensity
@@ -137,46 +310,84 @@ class Molecule:
                     crossSection[rightIndex] += rightCurve[c] * intensity
                 if isBetween(leftIndex, 0, arrayLength):
                     crossSection[leftIndex] += rightCurve[c] * intensity
+        print('')
         self.crossSection = crossSection
         self.progressCrossSection = True
         return self.crossSection
 
-    def createAbsorptionCoefficient(self):
+    def createAbsCoef(self):
+        if self.progressAbsCoef:
+            return self.absCoef
         if not self.progressCrossSection:
             self.createCrossSection()
-        print('Creating absorption coefficient for %s' % self.name)
-        self.absCoef = self.crossSection * self.concentration * self.parent.P * 100 / 1E6 / k / self.parent.T
+        self.absCoef = self.crossSection * self.concentration * self.layer.P / 1E4 / k / self.layer.T
         self.progressAbsCoef = True
         return self.absCoef
 
     def createTransmittance(self):
+        if self.progressTransmittance:
+            return self.transmittance
         if not self.progressAbsCoef:
-            self.createAbsorptionCoefficient()
-        print('Creating transmittance for %s' % self.name)
-        self.transmittance = np.exp(-self.absCoef * self.parent.depth)
+            self.createAbsCoef()
+        self.transmittance = np.exp(-self.absCoef * self.layer.depth)
         self.progressTransmittance = True
         return self.transmittance
 
     def createAbsorbance(self):
         if not self.progressTransmittance:
             self.createTransmittance()
-        print('Creating absorbance for %s' % self.name)
         self.absorbance = np.log(1 / self.transmittance)
-        self.progressAbsorbance = True
         return self.absorbance
 
+    def createEmissivity(self):
+        if not self.progressTransmittance:
+            self.createTransmittance()
+        self.emissivity = 1 - self.transmittance
+        return self.emissivity
+
+    @property
+    def P(self):
+        return self.layer.P
+
+    @property
+    def T(self):
+        return self.layer.T
+
+    @property
+    def depth(self):
+        return self.layer.depth
+
+    @property
+    def rangeMin(self):
+        return self.layer.rangeMin
+
+    @property
+    def rangeMax(self):
+        return self.layer.rangeMax
+
+    @property
+    def resolution(self):
+        return self.layer.resolution
+
+    @property
+    def distanceFromCenter(self):
+        return self.layer.distanceFromCenter
 
 class Layer(list):
     layerList = []
 
-    def __init__(self, depth, T, P, rangeMin, rangeMax, name=False):
+    def __init__(self, depth, T, P, rangeMin, rangeMax, name=False, dynamicResolution=False):
+        super().__init__(self)
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
         self.T = T
         self.P = P
         self.depth = depth
         self.distanceFromCenter = self.P / 1013.25 * 4
-        self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
+        if not dynamicResolution:
+            self.resolution = .01
+        else:
+            self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
         Layer.layerList.append(self)
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
@@ -184,7 +395,7 @@ class Layer(list):
         self.crossSection = self.yAxis
         self.transmittance = self.yAxis
         self.absorbance = self.yAxis
-        self.progressGetData = False
+        self.emissivity = self.yAxis
         self.progressAbsCoef = False
         self.progressTransmittance = False
         self.progressCrossSection = False
@@ -197,62 +408,49 @@ class Layer(list):
         return '%s; %s' % (self.name, '; '.join(str(m) for m in self))
 
     def createCrossSection(self):
-        if not self.progressGetData:
-            self.getData()
         for molecule in self:
-            print('Processing cross section for %s' % molecule.name)
             self.crossSection += molecule.createCrossSection()
         self.progressCrossSection = True
-        return self.crossSection
-
-    def getData(self):
-        for molecule in self:
-            molecule.getData()
-        self.progressGetData = True
-
-    def addMolecules(self, *molecules):
-        for molecule in molecules:
-            self.append(molecule)
-            molecule.setParentLayer(self)
-        if totalConcentration(molecules) > 1:
-            print('**Warning : Concentrations exceed 1.')
 
     def createAbsCoef(self):
         if not self.progressCrossSection:
             self.createCrossSection()
         for molecule in self:
-            if not molecule.progressCrossSection:
-                print('Absorption cross section for %s not yet processed, backtracking to crossSection...' % molecule.name)
-                molecule.createCrossSection()
-        print('Creating absorption coefficient for %s' % self.name)
-        for molecule in self:
-            self.absCoef += molecule.createAbsorptionCoefficient()
+            self.absCoef += molecule.createAbsCoef()
         self.progressAbsCoef = True
         return self.absCoef
 
     def createTransmittance(self):
         if not self.progressAbsCoef:
-            print('Absorption coefficient not processed, backtracking to absorptionCoefficient')
             self.createAbsCoef()
         self.transmittance = np.exp(-self.absCoef * self.depth)
         self.progressTransmittance = True
         return self.transmittance
 
-    def addMolecule(self, name, isotopeDepth=1, **abundance):
-        molecule = Molecule(name, isotopeDepth, **abundance)
-        self.append(molecule)
-        molecule.setParentLayer(self)
-        if totalConcentration(self) > 1:
-            print('**Warning : Concentrations exceed 1.')
-        return molecule
-
     def createAbsorbance(self):
         if not self.progressTransmittance:
-            print('Transmittance not processed, backtracking to absorptionCoefficient...')
             self.createTransmittance()
         self.absorbance = np.log(1 / self.transmittance)
-        self.progressAbsorbance = True
         return self.absorbance
+
+    def createEmissivity(self):
+        if not self.progressTransmittance:
+            self.createTransmittance()
+        self.emissivity = 1 - self.transmittance
+        return self.emissivity
+
+    def resetData(self):
+        for molecule in self:
+            molecule.getData()
+        self.progressGetData = True
+
+    def addMolecule(self, name, isotopeDepth=1, **abundance):
+        molecule = Molecule(name, self, isotopeDepth, **abundance)
+        self.append(molecule)
+        if totalConcentration(self) > 1:
+            print('**Warning : Concentrations exceed 1.')
+        molecule.getData()
+        return molecule
 
 
 def returnPlot(obj, propertyToPlot):
@@ -303,9 +501,9 @@ def plot(obj, propertyToPlot, individualColors=False, fill=True):
     if individualColors and isinstance(obj, list):
         if len(obj) > 6:
             print('More than 6 elements, only processing first 6...')
-        for molecule, color in zip(obj, COLOR_LIST):
-            yAxis, fillAxis = returnPlot(molecule, propertyToPlot)
-            fig, = plt.plot(obj.xAxis, yAxis, linewidth=1, color=color, alpha=.8, label='%s' % molecule.name)
+        for obj, color in zip(obj, COLOR_LIST):
+            yAxis, fillAxis = returnPlot(obj, propertyToPlot)
+            fig, = plt.plot(obj.xAxis, yAxis, linewidth=1, color=color, alpha=.8, label='%s' % obj.name)
             handles.append(fig)
             plt.fill_between(obj.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
     legend = plt.legend(handles=handles, frameon=False)
@@ -314,132 +512,55 @@ def plot(obj, propertyToPlot, individualColors=False, fill=True):
     plt.show()
 
 
-HITRAN_GLOBAL_ISO = {1: {1: 1,
-                         2: 2,
-                         3: 3,
-                         4: 4,
-                         5: 5,
-                         6: 6,
-                         7: 129},
-                     2: {1: 7,
-                         2: 8,
-                         3: 9,
-                         4: 10,
-                         5: 11,
-                         6: 12,
-                         7: 13,
-                         8: 14,
-                         9: 121,
-                         10: 15,
-                         11: 120,
-                         12: 122},
-                     3: {1: 16,
-                         2: 17,
-                         3: 18,
-                         4: 19,
-                         5: 20},
-                     4: {1: 21,
-                         2: 22,
-                         3: 23,
-                         4: 24,
-                         5: 25, },
-                     5: {1: 26,
-                         2: 27,
-                         3: 28,
-                         4: 29,
-                         5: 30,
-                         6: 31},
-                     6: {1: 32,
-                         2: 33,
-                         3: 34,
-                         4: 35},
-                     7: {1: 36,
-                         2: 37,
-                         3: 38},
-                     8: {1: 39,
-                         2: 40,
-                         3: 41},
-                     9: {1: 42,
-                         2: 43},
+HITRAN_GLOBAL_ISO = {1: {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 129},
+                     2: {1: 7, 2: 8, 3: 9, 4: 10, 5: 11, 6: 12, 7: 13, 8: 14, 9: 121, 10: 15, 11: 120, 12: 122},
+                     3: {1: 16, 2: 17, 3: 18, 4: 19, 5: 20},
+                     4: {1: 21, 2: 22, 3: 23, 4: 24, 5: 25, },
+                     5: {1: 26, 2: 27, 3: 28, 4: 29, 5: 30, 6: 31},
+                     6: {1: 32, 2: 33, 3: 34, 4: 35},
+                     7: {1: 36, 2: 37, 3: 38},
+                     8: {1: 39, 2: 40, 3: 41},
+                     9: {1: 42, 2: 43},
                      10: {1: 44},
-                     11: {1: 45,
-                          2: 46},
-                     12: {1: 47,
-                          2: 117},
-                     13: {1: 48,
-                          2: 49,
-                          3: 50},
-                     14: {1: 51,
-                          2: 110},
-                     15: {1: 52,
-                          2: 53,
-                          3: 107,
-                          4: 108},
-                     16: {1: 19,
-                          2: 11,
-                          3: 111,
-                          4: 112},
-                     17: {1: 56,
-                          2: 113},
-                     18: {1: 57,
-                          2: 58},
-                     19: {1: 59,
-                          2: 60,
-                          3: 61,
-                          4: 62,
-                          5: 63},
-                     20: {1: 64,
-                          2: 65,
-                          3: 66},
-                     21: {1: 67,
-                          2: 68},
-                     22: {1: 69,
-                          2: 118},
-                     23: {1: 70,
-                          2: 71,
-                          3: 72},
-                     24: {1: 73,
-                          2: 74},
+                     11: {1: 45, 2: 46},
+                     12: {1: 47, 2: 117},
+                     13: {1: 48, 2: 49, 3: 50},
+                     14: {1: 51, 2: 110},
+                     15: {1: 52, 2: 53, 3: 107, 4: 108},
+                     16: {1: 19, 2: 11, 3: 111, 4: 112},
+                     17: {1: 56, 2: 113},
+                     18: {1: 57, 2: 58},
+                     19: {1: 59, 2: 60, 3: 61, 4: 62, 5: 63},
+                     20: {1: 64, 2: 65, 3: 66},
+                     21: {1: 67, 2: 68},
+                     22: {1: 69, 2: 118},
+                     23: {1: 70, 2: 71, 3: 72},
+                     24: {1: 73, 2: 74},
                      25: {1: 75},
-                     26: {1: 76,
-                          2: 77,
-                          3: 105},
-                     27: {1: 78,
-                          2: 106},
+                     26: {1: 76, 2: 77, 3: 105},
+                     27: {1: 78, 2: 106},
                      28: {1: 79},
-                     29: {1: 80,
-                          2: 119},
+                     29: {1: 80, 2: 119},
                      30: {1: 126},
-                     31: {1: 81,
-                          2: 82,
-                          3: 83},
+                     31: {1: 81, 2: 82, 3: 83},
                      32: {1: 84},
                      33: {1: 85},
                      34: {1: 86},
-                     35: {1: 127,
-                          2: 128},
+                     35: {1: 127, 2: 128},
                      36: {1: 87},
-                     37: {1: 88,
-                          2: 89},
-                     38: {1: 90,
-                          2: 91},
+                     37: {1: 88, 2: 89},
+                     38: {1: 90, 2: 91},
                      39: {1: 92},
-                     40: {1: 93,
-                          2: 94},
+                     40: {1: 93, 2: 94},
                      41: {1: 95},
                      42: {1: 96},
                      43: {1: 116},
                      44: {1: 109},
-                     45: {1: 103,
-                          2: 115},
-                     46: {1: 97,
-                          2: 98,
-                          3: 99,
-                          4: 100},
+                     45: {1: 103, 2: 115},
+                     46: {1: 97, 2: 98, 3: 99, 4: 100},
                      47: {1: 114},
                      48: {1: 123},
-                     49: {1: 124,
-                          2: 125}}
+                     49: {1: 124, 2: 125}}
 
 COLOR_LIST = ['xkcd:bright orange',
               'xkcd:seafoam green',
@@ -447,6 +568,8 @@ COLOR_LIST = ['xkcd:bright orange',
               'xkcd:salmon',
               'xkcd:light violet',
               'xkcd:green yellow']
+
+TARGET_RESOLUTION = .01
 
 MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'ch4': 6, 'o2': 7, 'no': 8, 'so2': 9,
@@ -460,3 +583,140 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'c2h4': 38, 'ch3oh': 39, 'ch3br': 40, 'ch3cn': 41,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
                'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
+
+
+
+####        deprecated code
+
+"""
+    def createCrossSection(self):
+        layer = self.parent
+        progress = 0
+        i = 1
+        alertInterval = int(len(self.linelist) / 20)
+        crossSection = np.zeros(int((layer.rangeMax - layer.rangeMin) / layer.resolution))
+        for absoprtionLine in self.linelist:
+            print('Progress  <%s%s>\t nu=%s' % ('*' * i, '-' * (20 - i), absoprtionLine), end='\r', flush=True)
+            if progress > i * alertInterval:
+                i += 1
+            progress += 1
+            lineDict = self.linelist[absoprtionLine]
+            broadenedLine = ls.broadenLineList(layer.P, absoprtionLine, lineDict['pressureShift'])
+            isotope = lineDict['isotope']
+            globalIso = self.isoList[isotope - 1]
+            qDict = self.q[globalIso]
+            lhalfwidth = ls.lorentzHW(lineDict['airHalfWidth'], lineDict['selfHalfWidth'],
+                                      layer.P, layer.T, self.concentration, lineDict['tempExponent'])
+            ghalfwidth = ls.gaussianHW(broadenedLine, layer.T, self.molecularWeight)
+            rightCurve = ls.pseudoVoigtShape(ghalfwidth, lhalfwidth, layer.resolution, layer.distanceFromCenter)
+            intensity = pyradIntensity.intensityFactor(lineDict['intensity'], broadenedLine, layer.T,
+                                                       lineDict['lowerEnergy'],
+                                                       qDict[layer.T], qDict[296])
+            arrayIndex = int((absoprtionLine - layer.rangeMin) / layer.resolution)
+            arrayLength = len(crossSection) - 1
+            if isBetween(arrayIndex, 0, arrayLength):
+                crossSection[arrayIndex] = crossSection[arrayIndex] + rightCurve[0] * intensity
+            for c in range(1, len(rightCurve) - 1):
+                rightIndex = arrayIn   dex + c
+                leftIndex = arrayIndex - c
+                if isBetween(rightIndex, 0, arrayLength):
+                    crossSection[rightIndex] += rightCurve[c] * intensity
+                if isBetween(leftIndex, 0, arrayLength):
+                    crossSection[leftIndex] += rightCurve[c] * intensity
+        self.crossSection = crossSection
+        self.progressCrossSection = True
+        return self.crossSection
+
+    def createAbsorptionCoefficient(self):
+        print('Creating absorption coefficient for %s, global iso %s' % (molecule.name, self.))
+        self.absCoef = self.crossSection * self.concentration * self.parent.P * 100 / 1E6 / k / self.parent.T
+        self.progressAbsCoef = True
+        return self.absCoef
+
+    def createTransmittance(self):
+        if not self.progressAbsCoef:
+            self.createAbsorptionCoefficient()
+        print('Creating transmittance for %s' % self.name)
+        self.transmittance = np.exp(-self.absCoef * self.parent.depth)
+        self.progressTransmittance = True
+        return self.transmittance
+
+    def createAbsorbance(self):
+        if not self.progressTransmittance:
+            self.createTransmittance()
+        print('Creating absorbance for %s' % self.name)
+        self.absorbance = np.log(1 / self.transmittance)
+        self.progressAbsorbance = True
+        return self.absorbance"""
+
+"""
+    def createCrossSection(self):
+        for molecule in self:
+            print('Processing cross section for %s' % molecule.name)
+            self.crossSection += molecule.createCrossSection()
+        self.progressCrossSection = True
+        return self.crossSection
+
+        def createAbsCoef(self):
+        if not self.progressCrossSection:
+            self.createCrossSection()
+        for molecule in self:
+            if not molecule.progressCrossSection:
+                print('Absorption cross section for %s not yet processed, backtracking to crossSection...' % molecule.name)
+                molecule.createCrossSection()
+        print('Creating absorption coefficient for %s' % self.name)
+        for molecule in self:
+            self.absCoef += molecule.createAbsorptionCoefficient()
+        self.progressAbsCoef = True
+        return self.absCoef
+
+    def createTransmittance(self):
+        if not self.progressAbsCoef:
+            print('Absorption coefficient not processed, backtracking to absorptionCoefficient')
+            self.createAbsCoef()
+        self.transmittance = np.exp(-self.absCoef * self.depth)
+        self.progressTransmittance = True
+        return self.transmittance
+
+        def createAbsorbance(self):
+        if not self.progressTransmittance:
+            print('Transmittance not processed, backtracking to absorptionCoefficient...')
+            self.createTransmittance()
+        self.absorbance = np.log(1 / self.transmittance)
+        self.progressAbsorbance = True
+        return self.absorbance
+        
+        
+         def addMolecules(self, *molecules):
+        for molecule in molecules:
+            self.append(molecule)
+            molecule.setParentLayer(self)
+        if totalConcentration(molecules) > 1:
+            print('**Warning : Concentrations exceed 1.')
+        self.getData()
+        
+            def setParentLayer(self, layer):
+        self.layer = layer
+        self.P = layer.P
+        self.T = layer.T
+        self.depth = layer.depth
+        self.yAxis = layer.yAxis
+        self.crossSection = self.yAxis
+        self.absCoef = self.yAxis
+        self.transmittance = self.yAxis
+        self.absorbance = self.yAxis
+        self.emissivity = self.yAxis
+        self.xAxis = layer.xAxis
+        for isotope in self:
+            isotope.setIsotopeLayer(layer)
+            
+                def setIsotopeLayer(self, layer):
+        self.layer = layer
+        self.yAxis = layer.yAxis
+        self.crossSection = self.yAxis
+        self.absCoef = self.yAxis
+        self.transmittance = self.yAxis
+        self.absorbance = self.yAxis
+        self.emissivity = self.yAxis
+        self.xAxis = layer.xAxis
+        """
