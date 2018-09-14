@@ -72,6 +72,8 @@ def getMolParamsFromHitranFile():
     haveMolecule = False
     for row in rows:
         cells = row.split()
+        if cells == []:
+            break
         if cells[0].lower() in MOLECULE_ID:
             localIso = 0
             haveMolecule = True
