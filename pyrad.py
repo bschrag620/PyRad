@@ -19,6 +19,21 @@ def getCrossSection(obj):
     return obj.crossSection
 
 
+def resetData(obj):
+    obj.crossSection = np.copy(obj.yAxis)
+    obj.absCoef = np.copy(obj.yAxis)
+    obj.transmissivity = np.copy(obj.yAxis)
+    obj.absorbance = np.copy(obj.yAxis)
+    obj.emissivity = np.copy(obj.yAxis)
+    obj.progressTransmissivity = False
+    obj.progressAbsCoef = False
+    obj.progressCrossSection = False
+    obj.progressGetData = False
+    for child in obj:
+        if not isinstance(child, Line):
+            resetData(child)
+
+
 def getAbsCoef(obj):
     if not obj.progressAbsCoef:
         obj.createAbsCoef()
@@ -27,9 +42,7 @@ def getAbsCoef(obj):
 
 def getTransmissivity(obj):
     if not obj.progressTransmissivity:
-        print('no transmissivity')
         obj.createTransmissivity()
-        print('transmissivity created')
     return obj.transmissivity
 
 
@@ -105,7 +118,7 @@ class Line:
 
 
 class Isotope(list):
-    def __init__(self, number, parent):
+    def __init__(self, number, molecule):
         super().__init__(self)
         params = utils.readMolParams(number)
         self.globalIsoNumber = params[0]
@@ -117,7 +130,8 @@ class Isotope(list):
         self.q296 = params[5]
         self.gj = params[6]
         self.molMass = params[7]
-        self.molecule = parent
+        self.molecule = molecule
+        self.layer = self.molecule.layer
         self.q = {}
         self.xAxis = np.copy(self.molecule.xAxis)
         self.yAxis = np.copy(self.molecule.yAxis)
@@ -130,7 +144,7 @@ class Isotope(list):
         self.progressAbsCoef = False
         self.progressCrossSection = False
         self.progressGetData = False
-        self.layer = self.molecule.layer
+
 
     @property
     def P(self):
@@ -202,7 +216,6 @@ class Isotope(list):
                     crossSection[leftIndex] += rightCurve[c] * intensity
         self.crossSection = crossSection
         self.progressCrossSection = True
-        print('\n')
 
     def linelist(self):
         lines = []
@@ -214,9 +227,7 @@ class Isotope(list):
         molecule = self.molecule
         layer = molecule.layer
         if not self.progressCrossSection:
-            print('no crossSection')
             self.createCrossSection()
-            print('returned from crossSection')
         self.absCoef = self.crossSection * molecule.concentration * layer.P / 1E4 / k / layer.T
         self.progressAbsCoef = True
 
@@ -401,7 +412,6 @@ class Layer(list):
     def resetData(self):
         for molecule in self:
             molecule.getData()
-        self.progressGetData = True
 
     def addMolecule(self, name, isotopeDepth=1, **abundance):
         molecule = Molecule(name, self, isotopeDepth, **abundance)
