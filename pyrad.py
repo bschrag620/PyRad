@@ -8,8 +8,39 @@ import scipy.constants as sc
 k = sc.k
 p0 = 1013.25
 
+
 def progressAlert():
     pass
+
+
+def getCrossSection(obj):
+    if not obj.progressCrossSection:
+        obj.createCrossSection()
+    return obj.crossSection
+
+
+def getAbsCoef(obj):
+    if not obj.progressAbsCoef:
+        obj.createAbsCoef()
+    return obj.absCoef
+
+
+def getTransmissivity(obj):
+    if not obj.progressTransmissivity:
+        obj.createTransmissivity()
+    return obj.transmissivity
+
+
+def getAbsorbance(obj):
+    if not obj.progressTransmissivity:
+        obj.createTransmissivty()
+    return np.log(1 / obj.transmittance)
+
+
+def getEmissivity(obj):
+    if not obj.progressTransmissivity:
+        obj.createTransmissivty()
+    return 1 - obj.transmittance
 
 
 def getGlobalIsotope(ID, isotopeDepth):
@@ -62,17 +93,13 @@ class Line:
         return broadenedLine
 
     def lorentzHW(self):
-        hw = ls.lorentzHW(self.airHalfWidth, self.selfHalfWidth, self.layer.P, self.layer.T, self.molecule.concentration, self.tempExponent)
+        hw = ls.lorentzHW(self.airHalfWidth, self.selfHalfWidth, self.layer.P, self.layer.T,
+                          self.molecule.concentration, self.tempExponent)
         return hw
 
     def gaussianHW(self, broadenedLine):
         hw = ls.gaussianHW(broadenedLine, self.layer.T, self.isotope.molMass)
         return hw
-
-
-class CrossSection:
-    def __init__(self, globalIso, layer, array):
-        pass
 
 
 class Isotope(list):
@@ -90,14 +117,14 @@ class Isotope(list):
         self.molMass = params[7]
         self.molecule = parent
         self.q = {}
-        self.xAxis = self.molecule.xAxis
-        self.yAxis = self.molecule.yAxis
-        self.crossSection = self.yAxis
-        self.absCoef = self.yAxis
-        self.transmittance = self.yAxis
-        self.absorbance = self.yAxis
-        self.emissivity = self.yAxis
-        self.progressTransmittance = False
+        self.xAxis = np.copy(self.molecule.xAxis)
+        self.yAxis = np.copy(self.molecule.yAxis)
+        self.crossSection = np.copy(self.yAxis)
+        self.absCoef = np.copy(self.yAxis)
+        self.transmissivity = np.copy(self.yAxis)
+        self.absorbance = np.copy(self.yAxis)
+        self.emissivity = np.copy(self.yAxis)
+        self.progressTransmissivity = False
         self.progressAbsCoef = False
         self.progressCrossSection = False
         self.progressGetData = False
@@ -173,7 +200,7 @@ class Isotope(list):
                     crossSection[leftIndex] += rightCurve[c] * intensity
         self.crossSection = crossSection
         self.progressCrossSection = True
-        return self.crossSection
+        print('\n')
 
     def linelist(self):
         lines = []
@@ -181,47 +208,33 @@ class Isotope(list):
             lines.append(line)
         return lines
 
-    def createAbsorptionCoefficient(self):
+    def createAbsCoef(self):
         molecule = self.molecule
         layer = molecule.layer
         if not self.progressCrossSection:
             self.createCrossSection()
         self.absCoef = self.crossSection * molecule.concentration * layer.P / 1E4 / k / layer.T
         self.progressAbsCoef = True
-        return self.absCoef
 
-    def createTransmittance(self):
+    def createTransmissivity(self):
         molecule = self.molecule
         if not self.progressAbsCoef:
-            self.createAbsorptionCoefficient()
-        self.transmittance = np.exp(-self.absCoef * molecule.depth)
-        self.progressTransmittance = True
-        return self.transmittance
-
-    def createAbsorbance(self):
-        if not self.progressTransmittance:
-            self.createTransmittance()
-        self.absorbance = np.log(1 / self.transmittance)
-        return self.absorbance
-
-    def createEmissivity(self):
-        if not self.progressTransmittance:
-            self.createTransmittance()
-        self.emissivity = 1 - self.transmittance
-        return self.emissivity
+            self.createAbsCoef()
+        self.transmissivty = np.exp(-self.absCoef * molecule.depth)
+        self.progressTransmissivity = True
 
 
 class Molecule(list):
     def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
         super().__init__(self)
-        self.yAxis = layer.yAxis
-        self.xAxis = layer.xAxis
         self.layer = layer
-        self.crossSection = self.yAxis
-        self.absCoef = self.yAxis
-        self.transmittance = self.yAxis
-        self.absorbance = self.yAxis
-        self.emissivity = self.yAxis
+        self.yAxis = np.copy(layer.yAxis)
+        self.xAxis = layer.xAxis
+        self.crossSection = np.copy(self.yAxis)
+        self.absCoef = np.copy(self.yAxis)
+        self.transmissivity = np.copy(self.yAxis)
+        self.absorbance = np.copy(self.yAxis)
+        self.emissivity = np.copy(self.yAxis)
         try:
             int(shortNameOrMolNum)
             testNumber = True
@@ -243,7 +256,7 @@ class Molecule(list):
         self.concentration = 0
         self.progressGetData = False
         self.progressCrossSection = False
-        self.progressTransmittance = False
+        self.progressTransmissivity = False
         self.progressAbsCoef = False
         self.progressAbsorbance = False
         for key in abundance:
@@ -283,67 +296,21 @@ class Molecule(list):
         self.progressGetData = True
 
     def createCrossSection(self):
-        progress = 0
-        i = 1
-        crossSection = np.zeros(int((self.rangeMax - self.rangeMin) / self.resolution))
-        lineList = totalLineList(self)
-        alertInterval = max(int(len(lineList) / 20), 20)
-        for line in lineList:
-            print('Progress <%s%s>\t nu=%s' % ('*' * i, '-' * (20 - i), line.wavenumber), end='\r', flush=True)
-            if progress > i * alertInterval:
-                i += 1
-            progress += 1
-            broadenedLine = line.broadenedLine()
-            lhalfwidth = line.lorentzHW()
-            ghalfwidth = line.gaussianHW(broadenedLine)
-            rightCurve = ls.pseudoVoigtShape(ghalfwidth, lhalfwidth, self.resolution, self.distanceFromCenter)
-            intensity = pyradIntensity.intensityFactor(
-                line.intensity, broadenedLine, self.T, line.lowerEnergy, line.isotope.q[self.T], line.isotope.q296)
-            arrayIndex = int((line.wavenumber - self.rangeMin) / self.resolution)
-            arrayLength = len(crossSection) - 1
-            if isBetween(arrayIndex, 0, arrayLength):
-                crossSection[arrayIndex] = crossSection[arrayIndex] + rightCurve[0] * intensity
-            for c in range(1, len(rightCurve) - 1):
-                rightIndex = arrayIndex + c
-                leftIndex = arrayIndex - c
-                if isBetween(rightIndex, 0, arrayLength):
-                    crossSection[rightIndex] += rightCurve[c] * intensity
-                if isBetween(leftIndex, 0, arrayLength):
-                    crossSection[leftIndex] += rightCurve[c] * intensity
-        print('')
-        self.crossSection = crossSection
+        for isotope in self:
+            self.crossSection += getCrossSection(isotope)
         self.progressCrossSection = True
-        return self.crossSection
 
     def createAbsCoef(self):
-        if self.progressAbsCoef:
-            return self.absCoef
         if not self.progressCrossSection:
             self.createCrossSection()
         self.absCoef = self.crossSection * self.concentration * self.layer.P / 1E4 / k / self.layer.T
         self.progressAbsCoef = True
-        return self.absCoef
 
-    def createTransmittance(self):
-        if self.progressTransmittance:
-            return self.transmittance
+    def createTransmissivity(self):
         if not self.progressAbsCoef:
             self.createAbsCoef()
-        self.transmittance = np.exp(-self.absCoef * self.layer.depth)
-        self.progressTransmittance = True
-        return self.transmittance
-
-    def createAbsorbance(self):
-        if not self.progressTransmittance:
-            self.createTransmittance()
-        self.absorbance = np.log(1 / self.transmittance)
-        return self.absorbance
-
-    def createEmissivity(self):
-        if not self.progressTransmittance:
-            self.createTransmittance()
-        self.emissivity = 1 - self.transmittance
-        return self.emissivity
+        self.transmissivity = np.exp(-self.absCoef * self.layer.depth)
+        self.progressTransmissivity = True
 
     @property
     def P(self):
@@ -373,6 +340,7 @@ class Molecule(list):
     def distanceFromCenter(self):
         return self.layer.distanceFromCenter
 
+
 class Layer(list):
     layerList = []
 
@@ -391,13 +359,13 @@ class Layer(list):
         Layer.layerList.append(self)
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
-        self.absCoef = self.yAxis
-        self.crossSection = self.yAxis
-        self.transmittance = self.yAxis
-        self.absorbance = self.yAxis
-        self.emissivity = self.yAxis
+        self.crossSection = np.copy(self.yAxis)
+        self.absCoef = np.copy(self.yAxis)
+        self.transmissivity = np.copy(self.yAxis)
+        self.absorbance = np.copy(self.yAxis)
+        self.emissivity = np.copy(self.yAxis)
         self.progressAbsCoef = False
-        self.progressTransmittance = False
+        self.progressTransmissivity = False
         self.progressCrossSection = False
         self.progressAbsorbance = False
         if not name:
@@ -409,35 +377,21 @@ class Layer(list):
 
     def createCrossSection(self):
         for molecule in self:
-            self.crossSection += molecule.createCrossSection()
+            self.crossSection += getCrossSection(molecule)
         self.progressCrossSection = True
 
     def createAbsCoef(self):
         if not self.progressCrossSection:
             self.createCrossSection()
         for molecule in self:
-            self.absCoef += molecule.createAbsCoef()
+            self.absCoef += getAbsCoef(molecule)
         self.progressAbsCoef = True
-        return self.absCoef
 
-    def createTransmittance(self):
+    def createTransmissivity(self):
         if not self.progressAbsCoef:
             self.createAbsCoef()
-        self.transmittance = np.exp(-self.absCoef * self.depth)
-        self.progressTransmittance = True
-        return self.transmittance
-
-    def createAbsorbance(self):
-        if not self.progressTransmittance:
-            self.createTransmittance()
-        self.absorbance = np.log(1 / self.transmittance)
-        return self.absorbance
-
-    def createEmissivity(self):
-        if not self.progressTransmittance:
-            self.createTransmittance()
-        self.emissivity = 1 - self.transmittance
-        return self.emissivity
+        self.transmissivity = np.exp(-self.absCoef * self.depth)
+        self.progressTransmissivity = True
 
     def resetData(self):
         for molecule in self:
@@ -454,22 +408,14 @@ class Layer(list):
 
 
 def returnPlot(obj, propertyToPlot):
-    if propertyToPlot == "transmittance":
-        if not obj.progressTransmittance:
-            obj.createTransmittance()
-        yAxis = obj.transmittance, 1
+    if propertyToPlot == "transmissivity":
+        yAxis = getTransmissivity(obj), 1
     elif propertyToPlot == 'absorption coefficient':
-        if not obj.progressAbsCoef:
-            obj.createAbsCoef()
-        yAxis = obj.absCoef, 0
+        yAxis = getAbsCoef(obj), 0
     elif propertyToPlot == 'cross section':
-        if not obj.progressCrossSection:
-            obj.createCrossSection()
-        yAxis = obj.crossSection, 0
+        yAxis = getCrossSection(obj), 0
     elif propertyToPlot == 'absorbance':
-        if not obj.progressAbsorbance:
-            obj.createAbsorbance()
-        yAxis = obj.absorbance, 0
+        yAxis = getAbsorbance(obj), 0
     else:
         return False
     return yAxis
@@ -482,7 +428,7 @@ def isBetween(test, minValue, maxValue):
     return False
 
 
-def plot(obj, propertyToPlot, individualColors=False, fill=True):
+def plot(obj, propertyToPlot, fill=True, individualColors=True):
     plt.figure(figsize=(10, 6), dpi=80)
     plt.subplot(111, facecolor='xkcd:dark grey')
     plt.xlabel('wavenumber cm-1')
@@ -492,20 +438,20 @@ def plot(obj, propertyToPlot, individualColors=False, fill=True):
     plt.grid('grey', linewidth=.5, linestyle=':')
     plt.title('%s\nP: %smBars; T: %sK; depth: %scm' % (str(obj), obj.P, obj.T, obj.depth))
     yAxis, fillAxis = returnPlot(obj, propertyToPlot)
-    fig, = plt.plot(obj.xAxis, yAxis, linewidth=1, color='w', alpha=.8, label='total')
+    fig, = plt.plot(obj.xAxis, yAxis, linewidth=1, color='w', alpha=.8, label=obj.name)
     plt.fill_between(obj.xAxis, fillAxis, yAxis, color='w', alpha=.3 * fill)
     handles = [fig]
     if type(yAxis) is bool:
-        print('Invalid plot type. Choose "transmittance", "absorption coefficient", "cross section", or "absorbance".')
+        print('Invalid plot type. Choose "transmissivity", "absorption coefficient", "cross section", or "absorbance".')
         return False
-    if individualColors and isinstance(obj, list):
+    if isinstance(obj, list) and individualColors:
         if len(obj) > 6:
             print('More than 6 elements, only processing first 6...')
-        for obj, color in zip(obj, COLOR_LIST):
-            yAxis, fillAxis = returnPlot(obj, propertyToPlot)
-            fig, = plt.plot(obj.xAxis, yAxis, linewidth=1, color=color, alpha=.8, label='%s' % obj.name)
+        for subPlot, color in zip(obj, COLOR_LIST):
+            yAxis, fillAxis = returnPlot(subPlot, propertyToPlot)
+            fig, = plt.plot(subPlot.xAxis, yAxis, linewidth=1, color=color, alpha=.8, label='%s' % subPlot.name)
             handles.append(fig)
-            plt.fill_between(obj.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
+            plt.fill_between(subPlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')
@@ -583,140 +529,3 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'c2h4': 38, 'ch3oh': 39, 'ch3br': 40, 'ch3cn': 41,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
                'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
-
-
-
-####        deprecated code
-
-"""
-    def createCrossSection(self):
-        layer = self.parent
-        progress = 0
-        i = 1
-        alertInterval = int(len(self.linelist) / 20)
-        crossSection = np.zeros(int((layer.rangeMax - layer.rangeMin) / layer.resolution))
-        for absoprtionLine in self.linelist:
-            print('Progress  <%s%s>\t nu=%s' % ('*' * i, '-' * (20 - i), absoprtionLine), end='\r', flush=True)
-            if progress > i * alertInterval:
-                i += 1
-            progress += 1
-            lineDict = self.linelist[absoprtionLine]
-            broadenedLine = ls.broadenLineList(layer.P, absoprtionLine, lineDict['pressureShift'])
-            isotope = lineDict['isotope']
-            globalIso = self.isoList[isotope - 1]
-            qDict = self.q[globalIso]
-            lhalfwidth = ls.lorentzHW(lineDict['airHalfWidth'], lineDict['selfHalfWidth'],
-                                      layer.P, layer.T, self.concentration, lineDict['tempExponent'])
-            ghalfwidth = ls.gaussianHW(broadenedLine, layer.T, self.molecularWeight)
-            rightCurve = ls.pseudoVoigtShape(ghalfwidth, lhalfwidth, layer.resolution, layer.distanceFromCenter)
-            intensity = pyradIntensity.intensityFactor(lineDict['intensity'], broadenedLine, layer.T,
-                                                       lineDict['lowerEnergy'],
-                                                       qDict[layer.T], qDict[296])
-            arrayIndex = int((absoprtionLine - layer.rangeMin) / layer.resolution)
-            arrayLength = len(crossSection) - 1
-            if isBetween(arrayIndex, 0, arrayLength):
-                crossSection[arrayIndex] = crossSection[arrayIndex] + rightCurve[0] * intensity
-            for c in range(1, len(rightCurve) - 1):
-                rightIndex = arrayIn   dex + c
-                leftIndex = arrayIndex - c
-                if isBetween(rightIndex, 0, arrayLength):
-                    crossSection[rightIndex] += rightCurve[c] * intensity
-                if isBetween(leftIndex, 0, arrayLength):
-                    crossSection[leftIndex] += rightCurve[c] * intensity
-        self.crossSection = crossSection
-        self.progressCrossSection = True
-        return self.crossSection
-
-    def createAbsorptionCoefficient(self):
-        print('Creating absorption coefficient for %s, global iso %s' % (molecule.name, self.))
-        self.absCoef = self.crossSection * self.concentration * self.parent.P * 100 / 1E6 / k / self.parent.T
-        self.progressAbsCoef = True
-        return self.absCoef
-
-    def createTransmittance(self):
-        if not self.progressAbsCoef:
-            self.createAbsorptionCoefficient()
-        print('Creating transmittance for %s' % self.name)
-        self.transmittance = np.exp(-self.absCoef * self.parent.depth)
-        self.progressTransmittance = True
-        return self.transmittance
-
-    def createAbsorbance(self):
-        if not self.progressTransmittance:
-            self.createTransmittance()
-        print('Creating absorbance for %s' % self.name)
-        self.absorbance = np.log(1 / self.transmittance)
-        self.progressAbsorbance = True
-        return self.absorbance"""
-
-"""
-    def createCrossSection(self):
-        for molecule in self:
-            print('Processing cross section for %s' % molecule.name)
-            self.crossSection += molecule.createCrossSection()
-        self.progressCrossSection = True
-        return self.crossSection
-
-        def createAbsCoef(self):
-        if not self.progressCrossSection:
-            self.createCrossSection()
-        for molecule in self:
-            if not molecule.progressCrossSection:
-                print('Absorption cross section for %s not yet processed, backtracking to crossSection...' % molecule.name)
-                molecule.createCrossSection()
-        print('Creating absorption coefficient for %s' % self.name)
-        for molecule in self:
-            self.absCoef += molecule.createAbsorptionCoefficient()
-        self.progressAbsCoef = True
-        return self.absCoef
-
-    def createTransmittance(self):
-        if not self.progressAbsCoef:
-            print('Absorption coefficient not processed, backtracking to absorptionCoefficient')
-            self.createAbsCoef()
-        self.transmittance = np.exp(-self.absCoef * self.depth)
-        self.progressTransmittance = True
-        return self.transmittance
-
-        def createAbsorbance(self):
-        if not self.progressTransmittance:
-            print('Transmittance not processed, backtracking to absorptionCoefficient...')
-            self.createTransmittance()
-        self.absorbance = np.log(1 / self.transmittance)
-        self.progressAbsorbance = True
-        return self.absorbance
-        
-        
-         def addMolecules(self, *molecules):
-        for molecule in molecules:
-            self.append(molecule)
-            molecule.setParentLayer(self)
-        if totalConcentration(molecules) > 1:
-            print('**Warning : Concentrations exceed 1.')
-        self.getData()
-        
-            def setParentLayer(self, layer):
-        self.layer = layer
-        self.P = layer.P
-        self.T = layer.T
-        self.depth = layer.depth
-        self.yAxis = layer.yAxis
-        self.crossSection = self.yAxis
-        self.absCoef = self.yAxis
-        self.transmittance = self.yAxis
-        self.absorbance = self.yAxis
-        self.emissivity = self.yAxis
-        self.xAxis = layer.xAxis
-        for isotope in self:
-            isotope.setIsotopeLayer(layer)
-            
-                def setIsotopeLayer(self, layer):
-        self.layer = layer
-        self.yAxis = layer.yAxis
-        self.crossSection = self.yAxis
-        self.absCoef = self.yAxis
-        self.transmittance = self.yAxis
-        self.absorbance = self.yAxis
-        self.emissivity = self.yAxis
-        self.xAxis = layer.xAxis
-        """
