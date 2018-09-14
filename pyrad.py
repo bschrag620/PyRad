@@ -27,7 +27,9 @@ def getAbsCoef(obj):
 
 def getTransmissivity(obj):
     if not obj.progressTransmissivity:
+        print('no transmissivity')
         obj.createTransmissivity()
+        print('transmissivity created')
     return obj.transmissivity
 
 
@@ -212,15 +214,18 @@ class Isotope(list):
         molecule = self.molecule
         layer = molecule.layer
         if not self.progressCrossSection:
+            print('no crossSection')
             self.createCrossSection()
+            print('returned from crossSection')
         self.absCoef = self.crossSection * molecule.concentration * layer.P / 1E4 / k / layer.T
         self.progressAbsCoef = True
 
     def createTransmissivity(self):
         molecule = self.molecule
         if not self.progressAbsCoef:
+            print('no absCoef')
             self.createAbsCoef()
-        self.transmissivty = np.exp(-self.absCoef * molecule.depth)
+        self.transmissivity = np.exp(-self.absCoef * molecule.depth)
         self.progressTransmissivity = True
 
 
