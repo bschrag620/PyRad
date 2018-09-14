@@ -1,21 +1,10 @@
 import os
-from time import gmtime, strftime
 import urllib.request as urlrequest
 
 cwd = os.getcwd()
 dataDir = '%s/data' % cwd
 curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
-debugFilePath = '%s/logger.txt' % cwd
-
-debugFile = open(debugFilePath, 'w')
-debugFile.write(strftime("%Y-%m-%d %H:%M:%S\n", gmtime()))
-
-
-def outputToLog(text):
-    debugFile = open(debugFilePath, 'a')
-    debugFile.write('%s\n' % text)
-    debugFile.close()
 
 
 def setupDir():
@@ -78,38 +67,27 @@ def getCurves(curveType):
 
 
 def getMolParamsFromHitranFile():
-    outputToLog('getMolParams')
     rows = openReturnLines(molParamsFile)
-    outputToLog('row length=%s' % len(rows))
     isotopeInfo = {}
-    i = 0
-    while i < len(rows) -1:
-        outputToLog('i=%s' % i)
-        cells = rows[i].split()
-        outputToLog('cells length=%s' % len(cells))
-        outputToLog('cells value=%s' % cells)
-        while cells[0].lower() in MOLECULE_ID and i < len(rows) - 1:
+    haveMolecule = False
+    for row in rows:
+        cells = row.split()
+        if cells[0].lower() in MOLECULE_ID:
+            localIso = 0
+            haveMolecule = True
             moleculeShortName = cells[0].lower()
             moleculeID = int(cells[1].replace(')', '').replace('(', ''))
-            i += 1
-            isotopeNumber = 1
-            cells = rows[i].split()
-            while cells[0].lower() not in MOLECULE_ID:
-                IsoN = int(cells[0])
-                abundance = float(cells[1])
-                q296 = float(cells[2])
-                gj = int(cells[3])
-                molMass = float(cells[4])
-                globalID = HITRAN_GLOBAL_ISO[moleculeID][isotopeNumber]
-                infoList = [moleculeShortName, moleculeID, IsoN, abundance, q296, gj, molMass]
-                isotopeInfo[globalID] = infoList
-                writeDictListToFile({globalID: isotopeInfo[globalID]},'%s/%s/params.pyr' % (dataDir, globalID))
-                isotopeNumber += 1
-                i += 1
-                if i == len(rows):
-                    break
-                cells = rows[i].split()
-        i += 1
+        elif haveMolecule:
+            localIso += 1
+            IsoN = int(cells[0])
+            abundance = float(cells[1])
+            q296 = float(cells[2])
+            gj = int(cells[3])
+            molMass = float(cells[4])
+            globalID = HITRAN_GLOBAL_ISO[moleculeID][localIso]
+            infoList = [moleculeShortName, moleculeID, IsoN, abundance, q296, gj, molMass]
+            isotopeInfo[globalID] = infoList
+            writeDictListToFile({globalID: isotopeInfo[globalID]}, '%s/%s/params.pyr' % (dataDir, globalID))
     return isotopeInfo
 
 
