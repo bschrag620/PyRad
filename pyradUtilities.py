@@ -37,6 +37,8 @@ def openReturnLines(fullPath):
         return []
     openFile = open(fullPath)
     lineList = openFile.readlines()
+    if lineList[-1] == []:
+        lineList.pop()
     openFile.close()
     return lineList
 
