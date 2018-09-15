@@ -1,4 +1,3 @@
-import scipy.constants as sc
 import numpy as np
 import pyradUtilities as utils
 
@@ -6,6 +5,7 @@ import pyradUtilities as utils
 t0 = 296
 k = 1.38064852E-23
 c = 299792458.0
+pi = 3.141592653589793
 p0 = 1013.25
 
 cachedCurves = utils.getCurves('voigt')
@@ -17,7 +17,6 @@ def gaussianHW(wavenumber, t, m):
 
 
 def lorentzHW(airHalfWidth, selfHalfWidth, P, T, q, tExponent):
-
     hw = ((1-q) * airHalfWidth + q * selfHalfWidth) * (P / p0) * (t0 / T)**tExponent
     return hw
 
@@ -30,7 +29,7 @@ def gaussianLineShape(halfWidth, xValue):
 
 def lorentzLineShape(halfWidth, xValue):
     """Returns the right half of a lorentzian curve."""
-    lineShape = halfWidth / (sc.pi * (xValue**2 + halfWidth**2))
+    lineShape = halfWidth / (pi * (xValue**2 + halfWidth**2))
     return lineShape
 
 
@@ -47,8 +46,8 @@ def pseudoVoigtShape(gHW, lHW, dx, distanceFromCenter):
     curveLength = np.arange(0, distanceFromCenter, dx)
     gCurve = gaussianLineShape(fValue / 2, curveLength)
     lCurve = lorentzLineShape(fValue / 2, curveLength)
-    psuedoVoigt = nValue * lCurve + (1 - nValue) * gCurve
-    return psuedoVoigt
+    pseudoVoigt = nValue * lCurve + (1 - nValue) * gCurve
+    return pseudoVoigt
 
 
 def broadenLineList(p, wavenumber, pressureShift):
@@ -58,7 +57,7 @@ def broadenLineList(p, wavenumber, pressureShift):
 
 def vvLineShape(halfwidth, waveCenter, step):
     x = waveCenter
-    y = (halfwidth * waveCenter) / (sc.pi * waveCenter) * (1 / (waveCenter**2 + halfwidth**2) + 1/(waveCenter**2 + halfwidth**2))
+    y = (halfwidth * waveCenter) / (pi * waveCenter) * (1 / (waveCenter**2 + halfwidth**2) + 1/(waveCenter**2 + halfwidth**2))
     shape = []
     xRange = []
     tolerance = y / 500
@@ -66,7 +65,7 @@ def vvLineShape(halfwidth, waveCenter, step):
         shape.append(y)
         xRange.append(x)
         x += step
-        y = (halfwidth * x) / (sc.pi * waveCenter) * \
+        y = (halfwidth * x) / (pi * waveCenter) * \
             (1 / ((x - waveCenter) ** 2 + halfwidth ** 2) + 1 / ((waveCenter + x) ** 2 + halfwidth ** 2))
     return shape
 
