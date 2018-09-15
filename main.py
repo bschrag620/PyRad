@@ -26,18 +26,17 @@ Object can be layer, or just an individual molecule. plotchoice can be:
 
 Personal favorite add-on is to set individualColors=True in the plot command. This will plot the base object in white
 and up to 6 of the objects that make it up in individual colors. Example, define co2 to have an isotope depth of 3,
-plotting the transmittance will show each isotope in it's own color with the total transmittance in white. There is 
+plotting the transmittance will show each isotope in it's own color with the total transmissivity in white. There is 
 also a choice to set fill=False if you prefer to see just the outline.
 Questions or bugs, email brad.schrag@gmail.com
 """
 
-layer = pyrad.Layer(10, 300, 1013.25, 635, 640)
-co2 = layer.addMolecule('co2', ppm=400, isotopeDepth=3)
+layer = pyrad.Layer(10, 300, 1013.25, 200, 400)
+co2 = layer.addMolecule(2, ppm=400, isotopeDepth=3)
 h2o = layer.addMolecule('h2o', percentage=.4)
 ozone = layer.addMolecule('o3', ppb=10)
 
-layer.createCrossSection()
-pyrad.plot(layer, 'transmittance', individualColors=True)
+pyrad.plot(h2o, 'transmissivity')
 
 """
 MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,

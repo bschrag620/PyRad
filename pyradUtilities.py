@@ -1,14 +1,26 @@
 import os
 import urllib.request as urlrequest
+import datetime
 
 cwd = os.getcwd()
 dataDir = '%s/data' % cwd
 curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
+debuggerFilePath = '%s/logger.txt' % cwd
+now = datetime.datetime.now()
+debuggerFile = open(debuggerFilePath, 'w')
+debuggerFile.write('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"))
+debuggerFile.close()
+
+
+def logToFile(text):
+    debugFile = open(debuggerFilePath, 'a')
+    debugFile.write('%s\n' % text)
+    debugFile.close()
 
 
 def setupDir():
-    print('Verifying data stucture...', end='', flush=True)
+    print('Verifying data structure...', end='', flush=True)
     directoryList = [dataDir, curvesDir]
     fileList = []
     directoryCheck = True
@@ -16,7 +28,7 @@ def setupDir():
     for moleculeID in HITRAN_GLOBAL_ISO:
         for localIsoID in HITRAN_GLOBAL_ISO[moleculeID]:
             globalIsoPath = '%s/%s' % (dataDir, HITRAN_GLOBAL_ISO[moleculeID][localIsoID])
-            isotopeFilePath = '%s/param.pyr' % globalIsoPath
+            isotopeFilePath = '%s/params.pyr' % globalIsoPath
             directoryList.append(globalIsoPath)
             fileList.append(isotopeFilePath)
     for directory in directoryList:
@@ -25,6 +37,7 @@ def setupDir():
     print('directories checked...', end='', flush=True)
     for file in fileList:
         if not os.path.isfile(file):
+            print('Missing molecule parameters file, creating now...')
             if not os.path.isfile(molParamsFile):
                 downloadMolParam()
             getMolParamsFromHitranFile()
@@ -37,7 +50,7 @@ def openReturnLines(fullPath):
         return []
     openFile = open(fullPath)
     lineList = openFile.readlines()
-    if lineList[-1] == []:
+    while not lineList[-1]:
         lineList.pop()
     openFile.close()
     return lineList
@@ -73,8 +86,12 @@ def getMolParamsFromHitranFile():
     isotopeInfo = {}
     haveMolecule = False
     for row in rows:
+        logToFile('for loop row: %s' % row)
         cells = row.split()
-        if cells[0].lower() in MOLECULE_ID:
+        logToFile('for loop cells: %s' % cells)
+        if cells == []:
+            pass
+        elif cells[0].lower() in MOLECULE_ID:
             localIso = 0
             haveMolecule = True
             moleculeShortName = cells[0].lower()
@@ -263,7 +280,7 @@ def readMolParams(globalIso):
     return [globalIso, shortName, moleculeNum, isoN, abundance, q296, gj, molMass]
 
 
-VERSION = '1.1'
+VERSION = '1.2'
 titleLine = "***********************              PyRad              ***********************"
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)
 GREETING = "%s\n" \
