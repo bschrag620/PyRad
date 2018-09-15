@@ -46,7 +46,7 @@ def getAbsorbance(obj):
 
 def getEmissivity(obj):
     if not obj.progressCrossSection:
-        obj.createCrossSection
+        obj.createCrossSection()
     return obj.emissivity
 
 
