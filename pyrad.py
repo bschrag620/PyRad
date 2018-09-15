@@ -20,41 +20,34 @@ def getCrossSection(obj):
 
 def resetData(obj):
     obj.crossSection = np.copy(obj.yAxis)
-    obj.absCoef = np.copy(obj.yAxis)
-    obj.transmissivity = np.copy(obj.yAxis)
-    obj.absorbance = np.copy(obj.yAxis)
-    obj.emissivity = np.copy(obj.yAxis)
-    obj.progressTransmissivity = False
-    obj.progressAbsCoef = False
     obj.progressCrossSection = False
-    obj.progressGetData = False
     for child in obj:
         if not isinstance(child, Line):
             resetData(child)
 
 
 def getAbsCoef(obj):
-    if not obj.progressAbsCoef:
-        obj.createAbsCoef()
+    if not obj.progressCrossSection:
+        obj.createCrossSection()
     return obj.absCoef
 
 
 def getTransmissivity(obj):
-    if not obj.progressTransmissivity:
-        obj.createTransmissivity()
+    if not obj.progressCrossSection:
+        obj.createCrossSection()
     return obj.transmissivity
 
 
 def getAbsorbance(obj):
-    if not obj.progressTransmissivity:
-        obj.createTransmissivty()
-    return np.log(1 / obj.transmittance)
+    if not obj.progressCrossSection:
+        obj.createCrossSection()
+    return obj.absorbance
 
 
 def getEmissivity(obj):
-    if not obj.progressTransmissivity:
-        obj.createTransmissivty()
-    return 1 - obj.transmittance
+    if not obj.progressCrossSection:
+        obj.createCrossSection
+    return obj.emissivity
 
 
 def getGlobalIsotope(ID, isotopeDepth):
@@ -135,14 +128,7 @@ class Isotope(list):
         self.xAxis = np.copy(self.molecule.xAxis)
         self.yAxis = np.copy(self.molecule.yAxis)
         self.crossSection = np.copy(self.yAxis)
-        self.absCoef = np.copy(self.yAxis)
-        self.transmissivity = np.copy(self.yAxis)
-        self.absorbance = np.copy(self.yAxis)
-        self.emissivity = np.copy(self.yAxis)
-        self.progressTransmissivity = False
-        self.progressAbsCoef = False
         self.progressCrossSection = False
-        self.progressGetData = False
 
     @property
     def P(self):
@@ -172,6 +158,22 @@ class Isotope(list):
     def distanceFromCenter(self):
         return self.layer.distanceFromCenter
 
+    @property
+    def absCoef(self):
+        return self.crossSection * self.molecule.concentration * self.layer.P / 1E4 / k / self.layer.T
+
+    @property
+    def transmissivity(self):
+        return np.exp(-self.absCoef * self.layer.depth)
+
+    @property
+    def emissivity(self):
+        return 1 - self.transmissivity
+
+    @property
+    def absorbance(self):
+        return np.log(1 / self.transmissivity)
+
     def getData(self):
         print('Getting data for %s, isotope #%s' % (self.molecule.name, self.globalIsoNumber))
         lineDict = utils.gatherData(self.globalIsoNumber, self.rangeMin, self.rangeMax)
@@ -181,7 +183,6 @@ class Isotope(list):
                              lineDict[line]['airHalfWidth'], lineDict[line]['selfHalfWidth'],
                              lineDict[line]['lowerEnergy'], lineDict[line]['tempExponent'],
                              lineDict[line]['pressureShift'], self))
-        self.progressGetData = True
 
     def createCrossSection(self):
         molecule = self.molecule
@@ -221,21 +222,6 @@ class Isotope(list):
             lines.append(line)
         return lines
 
-    def createAbsCoef(self):
-        molecule = self.molecule
-        layer = molecule.layer
-        if not self.progressCrossSection:
-            self.createCrossSection()
-        self.absCoef = self.crossSection * molecule.concentration * layer.P / 1E4 / k / layer.T
-        self.progressAbsCoef = True
-
-    def createTransmissivity(self):
-        molecule = self.molecule
-        if not self.progressAbsCoef:
-            self.createAbsCoef()
-        self.transmissivity = np.exp(-self.absCoef * molecule.depth)
-        self.progressTransmissivity = True
-
 
 class Molecule(list):
     def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
@@ -244,10 +230,6 @@ class Molecule(list):
         self.yAxis = np.copy(layer.yAxis)
         self.xAxis = layer.xAxis
         self.crossSection = np.copy(self.yAxis)
-        self.absCoef = np.copy(self.yAxis)
-        self.transmissivity = np.copy(self.yAxis)
-        self.absorbance = np.copy(self.yAxis)
-        self.emissivity = np.copy(self.yAxis)
         try:
             int(shortNameOrMolNum)
             self.ID = int(shortNameOrMolNum)
@@ -261,11 +243,7 @@ class Molecule(list):
             if not self.name:
                 self.name = isoClass.shortName
         self.concentration = 0
-        self.progressGetData = False
         self.progressCrossSection = False
-        self.progressTransmissivity = False
-        self.progressAbsCoef = False
-        self.progressAbsorbance = False
         for key in abundance:
             if key == 'ppm':
                 self.setPPM(abundance[key])
@@ -303,21 +281,19 @@ class Molecule(list):
         self.progressGetData = True
 
     def createCrossSection(self):
+        tempAxis = np.copy(self.yAxis)
         for isotope in self:
-            self.crossSection += getCrossSection(isotope)
+            tempAxis += getCrossSection(isotope)
         self.progressCrossSection = True
+        self.crossSection = tempAxis
 
-    def createAbsCoef(self):
-        if not self.progressCrossSection:
-            self.createCrossSection()
-        self.absCoef = self.crossSection * self.concentration * self.layer.P / 1E4 / k / self.layer.T
-        self.progressAbsCoef = True
+    @property
+    def absCoef(self):
+        return self.crossSection * self.concentration * self.layer.P / 1E4 / k / self.layer.T
 
-    def createTransmissivity(self):
-        if not self.progressAbsCoef:
-            self.createAbsCoef()
-        self.transmissivity = np.exp(-self.absCoef * self.layer.depth)
-        self.progressTransmissivity = True
+    @property
+    def transmissivity(self):
+        return np.exp(-self.absCoef * self.layer.depth)
 
     @property
     def P(self):
@@ -358,23 +334,16 @@ class Layer(list):
         self.T = T
         self.P = P
         self.depth = depth
-        self.distanceFromCenter = self.P / 1013.25 * 4
+        self.distanceFromCenter = self.P / 1013.25 * 5
         if not dynamicResolution:
-            self.resolution = .01
+            self.resolution = BASE_RESOLUTION
         else:
             self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
         Layer.layerList.append(self)
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
         self.crossSection = np.copy(self.yAxis)
-        self.absCoef = np.copy(self.yAxis)
-        self.transmissivity = np.copy(self.yAxis)
-        self.absorbance = np.copy(self.yAxis)
-        self.emissivity = np.copy(self.yAxis)
-        self.progressAbsCoef = False
-        self.progressTransmissivity = False
         self.progressCrossSection = False
-        self.progressAbsorbance = False
         if not name:
             name = 'layer %s' % Layer.layerList.index(self)
         self.name = name
@@ -383,22 +352,22 @@ class Layer(list):
         return '%s; %s' % (self.name, '; '.join(str(m) for m in self))
 
     def createCrossSection(self):
+        tempAxis = np.copy(self.yAxis)
         for molecule in self:
-            self.crossSection += getCrossSection(molecule)
+            tempAxis += getCrossSection(molecule)
         self.progressCrossSection = True
+        self.crossSection = tempAxis
 
-    def createAbsCoef(self):
-        if not self.progressCrossSection:
-            self.createCrossSection()
+    @property
+    def absCoef(self):
+        tempAxis = np.copy(self.yAxis)
         for molecule in self:
-            self.absCoef += getAbsCoef(molecule)
-        self.progressAbsCoef = True
+            tempAxis += getAbsCoef(molecule)
+        return tempAxis
 
-    def createTransmissivity(self):
-        if not self.progressAbsCoef:
-            self.createAbsCoef()
-        self.transmissivity = np.exp(-self.absCoef * self.depth)
-        self.progressTransmissivity = True
+    @property
+    def transmissivity(self):
+        return np.exp(-self.absCoef * self.depth)
 
     def resetData(self):
         for molecule in self:
@@ -521,7 +490,7 @@ COLOR_LIST = ['xkcd:bright orange',
               'xkcd:light violet',
               'xkcd:green yellow']
 
-TARGET_RESOLUTION = .01
+BASE_RESOLUTION = .01
 
 MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'ch4': 6, 'o2': 7, 'no': 8, 'so2': 9,
