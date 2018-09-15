@@ -4,8 +4,10 @@ import pyradIntensity
 import numpy as np
 import matplotlib.pyplot as plt
 
+c = 299792458.0
 k = 1.38064852E-23
 p0 = 1013.25
+t0 = 296
 
 
 def progressAlert():
@@ -95,18 +97,18 @@ class Line:
         self.tempExponent = tempExponent
         self.pressureShift = pressureShift
 
+    @property
     def broadenedLine(self):
-        broadenedLine = self.wavenumber + self.pressureShift * self.layer.P / p0
-        return broadenedLine
+        return self.wavenumber + self.pressureShift * self.layer.P / p0
 
+    @property
     def lorentzHW(self):
-        hw = ls.lorentzHW(self.airHalfWidth, self.selfHalfWidth, self.layer.P, self.layer.T,
-                          self.molecule.concentration, self.tempExponent)
-        return hw
+        return ((1 - self.molecule.concentration) * self.airHalfWidth + self.molecule.concentration
+                * self.selfHalfWidth) * (self.layer.P / p0) * (t0 / self.layer.T) ** self.tempExponent
 
-    def gaussianHW(self, broadenedLine):
-        hw = ls.gaussianHW(broadenedLine, self.layer.T, self.isotope.molMass)
-        return hw
+    @property
+    def gaussianHW(self):
+        return self.broadenedLine * np.sqrt(2 * k * self.layer.T / self.isotope.molMass / c ** 2)
 
 
 class Isotope(list):
@@ -196,12 +198,10 @@ class Isotope(list):
             if progress > i * alertInterval:
                 i += 1
             progress += 1
-            broadenedLine = line.broadenedLine()
-            lhalfwidth = line.lorentzHW()
-            ghalfwidth = line.gaussianHW(broadenedLine)
-            rightCurve = ls.pseudoVoigtShape(ghalfwidth, lhalfwidth, layer.resolution, layer.distanceFromCenter)
-            intensity = pyradIntensity.intensityFactor(
-                line.intensity, broadenedLine, layer.T, line.lowerEnergy, self.q[layer.T], self.q296)
+            rightCurve = ls.pseudoVoigtShape(line.gaussianHW, line.lorentzHW,
+                                             layer.resolution, layer.distanceFromCenter)
+            intensity = pyradIntensity.intensityFactor(line.intensity, line.broadenedLine,
+                                                       layer.T, line.lowerEnergy, self.q[layer.T], self.q296)
             arrayIndex = int((line.wavenumber - layer.rangeMin) / layer.resolution)
             arrayLength = len(crossSection) - 1
             if isBetween(arrayIndex, 0, arrayLength):
@@ -278,7 +278,6 @@ class Molecule(list):
     def getData(self):
         for isotope in self:
             isotope.getData()
-        self.progressGetData = True
 
     def createCrossSection(self):
         tempAxis = np.copy(self.yAxis)
@@ -336,7 +335,7 @@ class Layer(list):
         self.depth = depth
         self.distanceFromCenter = self.P / 1013.25 * 5
         if not dynamicResolution:
-            self.resolution = BASE_RESOLUTION
+            self.resolution = utils.BASE_RESOLUTION
         else:
             self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
         Layer.layerList.append(self)
@@ -490,7 +489,6 @@ COLOR_LIST = ['xkcd:bright orange',
               'xkcd:light violet',
               'xkcd:green yellow']
 
-BASE_RESOLUTION = .01
 
 MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'ch4': 6, 'o2': 7, 'no': 8, 'so2': 9,

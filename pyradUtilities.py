@@ -47,17 +47,26 @@ def setupDir():
 
 def openReturnLines(fullPath):
     if not os.path.isfile(fullPath):
-        return []
+        return False
     openFile = open(fullPath)
     lineList = openFile.readlines()
-    while not lineList[-1]:
-        lineList.pop()
     openFile.close()
+    if not lineList:
+        return False
+    for line in lineList:
+        if not line:
+            lineList.remove(line)
+        elif line[0] == '#':
+            lineList.remove(line)
     return lineList
 
 
 def writeDictListToFile(dictionary, fullPath):
     openFile = open(fullPath, 'w')
+    if '#' in dictionary:
+        text = '%s,%s\n' % ('#', ','.join(str(item) for item in dictionary['#']))
+        openFile.write(text)
+        del dictionary['#']
     for key in dictionary:
         text = '%s,%s\n' % (key, ','.join(str(item) for item in dictionary[key]))
         openFile.write(text)
@@ -68,10 +77,17 @@ def writeListToFile():
     pass
 
 
-def getCurves(curveType):
+def getCurves(curveType, res):
     curveDict = {}
+    resDirectory = '%s/res%s' % (curvesDir, res)
+    if not os.path.isdir(resDirectory):
+        os.mkdir(resDirectory)
     if curveType == 'voigt':
-        curveFilePath = '%s/voigt.pyr' % curvesDir
+        curveFilePath = '%s/voigt.pyr' % (resDirectory)
+    elif curveType == 'lorentz':
+        curveFilePath = '%s/lorentz.pyr' % (resDirectory)
+    elif curveType == 'gaussian':
+        curveFilePath = '%s/gaussian.pyr' % (resDirectory)
     rows = openReturnLines(curveFilePath)
     if rows:
         for row in rows:
@@ -89,7 +105,7 @@ def getMolParamsFromHitranFile():
         logToFile('for loop row: %s' % row)
         cells = row.split()
         logToFile('for loop cells: %s' % cells)
-        if cells == []:
+        if not cells:
             pass
         elif cells[0].lower() in MOLECULE_ID:
             localIso = 0
@@ -106,7 +122,9 @@ def getMolParamsFromHitranFile():
             globalID = HITRAN_GLOBAL_ISO[moleculeID][localIso]
             infoList = [moleculeShortName, moleculeID, IsoN, abundance, q296, gj, molMass]
             isotopeInfo[globalID] = infoList
-            writeDictListToFile({globalID: isotopeInfo[globalID]}, '%s/%s/params.pyr' % (dataDir, globalID))
+            writeDictListToFile({'#': [' molecule parameters file for pyrad', 'localIso', 'Isotope numbers', 'abundance',
+                                               'q296', 'gj', 'molMass', 'globalID'],
+                                 globalID: isotopeInfo[globalID]}, '%s/%s/params.pyr' % (dataDir, globalID))
     return isotopeInfo
 
 
@@ -123,7 +141,8 @@ def gatherData(globalIsoId, rangeMin, rangeMax):
             os.makedirs(globalIsoDir)
         filePath = '%s/%s/%s.pyr' % (dataDir, globalIsoId, segment)
         if not os.path.isfile(filePath):
-            print('File not found for %s, range %s-%s. Downloading from HITRAN...' % (globalIsoId, segment, segment + 100))
+            print('File not found for %s, range %s-%s. Downloading from HITRAN...'
+                  % (globalIsoId, segment, segment + 100))
             downloadHitran(filePath, globalIsoId, segment, segment + 100)
         info.update(readHitranOnlineFile(filePath, rangeMin, rangeMax))
         getQData(globalIsoId)
@@ -186,6 +205,9 @@ def downloadHitran(path, globalID, waveMin, waveMax):
         request = urlrequest.urlopen(url)
     except urlrequest.HTTPError:
         print('Can not retrieve data for given parameters.')
+        openFile = open(path, 'w')
+        openFile.write('# no data available for %s, range %s-%s'% (globalID, waveMin, waveMax))
+        openFile.close()
         request = False
     except urlrequest.URLError:
         print('Can not connect to %s' % str(url))
@@ -235,6 +257,8 @@ def readHitranOnlineFile(path, waveMin, waveMax):
     pressureShift = 8
     lineListDict = {}
     rows = openReturnLines(path)
+    if not rows:
+        return lineListDict
     for row in rows:
         cell = row.split(',')
         if waveMin < float(cell[wavenumber]):
@@ -280,7 +304,8 @@ def readMolParams(globalIso):
     return [globalIso, shortName, moleculeNum, isoN, abundance, q296, gj, molMass]
 
 
-VERSION = '1.2'
+BASE_RESOLUTION = .01
+VERSION = '1.3'
 titleLine = "***********************              PyRad              ***********************"
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)
 GREETING = "%s\n" \

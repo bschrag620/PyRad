@@ -8,7 +8,9 @@ c = 299792458.0
 pi = 3.141592653589793
 p0 = 1013.25
 
-cachedCurves = utils.getCurves('voigt')
+cachedVoigt = utils.getCurves('voigt', utils.BASE_RESOLUTION)
+cachedLorentz = utils.getCurves('lorentz', utils.BASE_RESOLUTION)
+cachedGaussian = utils.getCurves('gaussian', utils.BASE_RESOLUTION)
 
 
 def gaussianHW(wavenumber, t, m):
@@ -40,8 +42,8 @@ def pseudoVoigtShape(gHW, lHW, dx, distanceFromCenter):
               2.42843 * gFW**3 * lFW**2 +
               4.47163 * gFW**2 * lFW**3 +
               .07842 * gFW * lFW**4 + lFW**5)**.2
-    if fValue in cachedCurves:
-        return cachedCurves[fValue]
+    if fValue in cachedVoigt:
+        return cachedVoigt[fValue]
     nValue = 1.36603 * (lFW / fValue) - .47719 * (lFW / fValue)**2 + .11116 * (lFW / fValue)**3
     curveLength = np.arange(0, distanceFromCenter, dx)
     gCurve = gaussianLineShape(fValue / 2, curveLength)

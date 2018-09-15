@@ -32,7 +32,7 @@ Questions or bugs, email brad.schrag@gmail.com
 """
 
 layer = pyrad.Layer(10, 300, 1013.25, 200, 400)
-co2 = layer.addMolecule(2, ppm=400, isotopeDepth=3)
+co2 = layer.addMolecule(2, ppm=400, isotopeDepth=1)
 h2o = layer.addMolecule('h2o', percentage=.4)
 ozone = layer.addMolecule('o3', ppb=10)
 
