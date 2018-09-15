@@ -1,12 +1,11 @@
 import scipy.constants as sc
 import numpy as np
-from scipy.special import wofz
 import pyradUtilities as utils
 
 
 t0 = 296
-k = sc.k
-c = sc.c
+k = 1.38064852E-23
+c = 299792458.0
 p0 = 1013.25
 
 cachedCurves = utils.getCurves('voigt')
@@ -73,9 +72,9 @@ def vvLineShape(halfwidth, waveCenter, step):
 
 
 #   simply used to validate the shape of the pseudo curve in testing
-def V(xValue, lHW, gHW):
+'''def V(xValue, lHW, gHW):
     """Return the Voigt line shape at x with Lorentzian component HWHM gamma
     and Gaussian component HWHM alpha."""
     sigma = lHW / np.sqrt(2 * np.log(2))
     return np.real(wofz((xValue + 1j * gHW) / sigma / np.sqrt(2))) / sigma \
-           / np.sqrt(2*np.pi)
+           / np.sqrt(2*np.pi)'''

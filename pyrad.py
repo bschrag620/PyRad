@@ -3,9 +3,8 @@ import pyradLineshape as ls
 import pyradIntensity
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.constants as sc
 
-k = sc.k
+k = 1.38064852E-23
 p0 = 1013.25
 
 
@@ -145,7 +144,6 @@ class Isotope(list):
         self.progressCrossSection = False
         self.progressGetData = False
 
-
     @property
     def P(self):
         return self.layer.P
@@ -234,7 +232,6 @@ class Isotope(list):
     def createTransmissivity(self):
         molecule = self.molecule
         if not self.progressAbsCoef:
-            print('no absCoef')
             self.createAbsCoef()
         self.transmissivity = np.exp(-self.absCoef * molecule.depth)
         self.progressTransmissivity = True
@@ -253,13 +250,9 @@ class Molecule(list):
         self.emissivity = np.copy(self.yAxis)
         try:
             int(shortNameOrMolNum)
-            testNumber = True
-        except:
-            testNumber = False
-        if testNumber:
             self.ID = int(shortNameOrMolNum)
             self.name = False
-        else:
+        except ValueError:
             self.name = shortNameOrMolNum
             self.ID = MOLECULE_ID[self.name]
         for isotope in getGlobalIsotope(self.ID, isotopeDepth):
@@ -267,8 +260,6 @@ class Molecule(list):
             self.append(isoClass)
             if not self.name:
                 self.name = isoClass.shortName
-            else:
-                self.ID = isoClass.molNum
         self.concentration = 0
         self.progressGetData = False
         self.progressCrossSection = False
