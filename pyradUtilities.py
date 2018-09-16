@@ -9,7 +9,7 @@ molParamsFile = '%s/molparams.txt' % dataDir
 debuggerFilePath = '%s/logger.txt' % cwd
 now = datetime.datetime.now()
 debuggerFile = open(debuggerFilePath, 'wb')
-debuggerFile.write(bytes('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"), 'utf-8')
+debuggerFile.write(bytes('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"), 'utf-8'))
 debuggerFile.close()
 
 
