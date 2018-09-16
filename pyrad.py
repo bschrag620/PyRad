@@ -5,6 +5,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 k = 1.38064852E-23
+c = 299792458.0
+h = 6.62607004e-34
+pi = 3.141592653589793
+t0 = 296
 p0 = 1013.25
 
 

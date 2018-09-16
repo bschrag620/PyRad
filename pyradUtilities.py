@@ -89,9 +89,7 @@ def getMolParamsFromHitranFile():
         logToFile('for loop row: %s' % row)
         cells = row.split()
         logToFile('for loop cells: %s' % cells)
-        if cells == []:
-            pass
-        elif cells[0].lower() in MOLECULE_ID:
+        if cells[0].lower() in MOLECULE_ID:
             localIso = 0
             haveMolecule = True
             moleculeShortName = cells[0].lower()

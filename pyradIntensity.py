@@ -1,9 +1,9 @@
-import scipy.constants as sc
 import numpy as np
 
-k = sc.k
-c = sc.c
-h = sc.h
+k = 1.38064852E-23
+c = 299792458.0
+h = 6.62607004e-34
+pi = 3.141592653589793
 t0 = 296
 p0 = 1013.25
 
