@@ -8,8 +8,8 @@ curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
 debuggerFilePath = '%s/logger.txt' % cwd
 now = datetime.datetime.now()
-debuggerFile = open(debuggerFilePath, 'w')
-debuggerFile.write('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"))
+debuggerFile = open(debuggerFilePath, 'wb')
+debuggerFile.write(bytes('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"), 'utf-8'))
 debuggerFile.close()
 
 
@@ -57,10 +57,10 @@ def openReturnLines(fullPath):
 
 
 def writeDictListToFile(dictionary, fullPath):
-    openFile = open(fullPath, 'w')
+    openFile = open(fullPath, 'wb')
     for key in dictionary:
         text = '%s,%s\n' % (key, ','.join(str(item) for item in dictionary[key]))
-        openFile.write(text)
+        openFile.write(bytes(text, 'utf-8'))
     openFile.close()
 
 
@@ -150,13 +150,13 @@ def downloadMolParam():
         print('Can not connect. Exiting')
         return False
     chunkSize = 1024 * 64
-    openFile = open(molParamsFile, 'w')
+    openFile = open(molParamsFile, 'wb')
     while True:
         chunk = request.read(chunkSize)
         if not chunk:
             print('Molecule parameters successfully downloaded.')
             break
-        openFile.write(chunk.decode('utf-8'))
+        openFile.write(chunk)
     openFile.close()
 
 
@@ -165,13 +165,13 @@ def downloadQData(isotope):
     path = cwd + '/data/%s/q%s.txt' % (isotope, isotope)
     request = urlrequest.urlopen(url)
     print('Downloading Q table from %s' % url)
-    openFile = open(path, 'w')
+    openFile = open(path, 'wb')
     chunkSize = 1024 * 64
     while True:
         chunk = request.read(chunkSize)
         if not chunk:
             break
-        openFile.write(chunk.decode('utf-8'))
+        openFile.write(chunk)
     openFile.close()
 
 
@@ -194,14 +194,14 @@ def downloadHitran(path, globalID, waveMin, waveMax):
     dirLength = len(cwd)
     if request:
         i = 0
-        openFile = open(path, 'w')
+        openFile = open(path, 'wb')
         chunkSize = 1024 * 64
         while True:
             i += 1
             chunk = request.read(chunkSize)
             if not chunk:
                 break
-            openFile.write(chunk.decode('utf-8'))
+            openFile.write(chunk)
             print('%s downloaded and written to %s%s' % (chunkSize, path[dirLength:], '.' * i), end='\r', flush=True)
         print('\n', end='\r')
         openFile.close()
