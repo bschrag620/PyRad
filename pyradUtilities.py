@@ -60,7 +60,7 @@ def writeDictListToFile(dictionary, fullPath):
     openFile = open(fullPath, 'wb')
     for key in dictionary:
         text = '%s,%s\n' % (key, ','.join(str(item) for item in dictionary[key]))
-        openFile.write(bytes(text, 'utf-8')
+        openFile.write(bytes(text, 'utf-8'))
     openFile.close()
 
 
