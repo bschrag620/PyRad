@@ -15,7 +15,7 @@ pi = 3.141592653589793
 t0 = 296
 p0 = 1013.25
 t0 = 296
-
+avo =  6.022140857E23
 
 def progressAlert():
     pass
@@ -130,7 +130,7 @@ class Isotope(list):
         self.abundance = params[4]
         self.q296 = params[5]
         self.gj = params[6]
-        self.molMass = params[7]
+        self.molmass = params[7]
         self.molecule = molecule
         self.layer = self.molecule.layer
         self.q = {}
@@ -142,6 +142,10 @@ class Isotope(list):
     @property
     def P(self):
         return self.layer.P
+
+    @property
+    def molMass(self):
+        return self.molmass / 1000 / avo
 
     @property
     def T(self):
