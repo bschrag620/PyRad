@@ -6,6 +6,8 @@ import pyradUtilities as utils
 #cachedVoigt = utils.getCurves('voigt', utils.BASE_RESOLUTION)
 cachedLorentz = utils.getCurves('lorentz', utils.BASE_RESOLUTION)
 cachedGaussian = utils.getCurves('gaussian', utils.BASE_RESOLUTION)
+newLorentz = {}
+newGaussian = {}
 print('\n', end='\r')
 
 h = 6.62607004e-34
@@ -35,6 +37,7 @@ def gaussianLineShape(halfWidth, xValue):
     """Returns the right half of a gaussian curve, used for temp broadening in low pressure scenarios"""
     lineShape = np.sqrt(np.log(2) / np.pi) / halfWidth * np.exp(-(xValue / halfWidth) ** 2 * np.log(2))
     cachedGaussian[halfWidth] = lineShape
+    newGaussian[halfWidth] = lineShape
     return lineShape
 
 
@@ -47,6 +50,7 @@ def lorentzLineShape(halfWidth, xValue):
     """Returns the right half of a lorentzian curve."""
     lineShape = halfWidth / (pi * (xValue**2 + halfWidth**2))
     cachedLorentz[halfWidth] = lineShape
+    newLorentz[halfWidth] = lineShape
     return lineShape
 
 
@@ -89,9 +93,10 @@ def vvLineShape(halfwidth, centerWavenumber, xValues):
 
 
 def writeCacheToFile():
-    print('Writing line shapes to file.')
-    utils.writeCurveToFile(cachedGaussian, 'gaussian', utils.BASE_RESOLUTION)
-    utils.writeCurveToFile(cachedLorentz, 'lorentz', utils.BASE_RESOLUTION)
+    print('Writing new line shapes to file...', end='', flush=True)
+    utils.writeCurveToFile(newGaussian, 'gaussian', utils.BASE_RESOLUTION)
+    utils.writeCurveToFile(newLorentz, 'lorentz', utils.BASE_RESOLUTION)
+    print('%s added.' % (len(newLorentz) + len(newGaussian)))
 #   utils.writeCurveToFile(cachedVoigt, 'voigt', utils.BASE_RESOLUTION)
 
 #   simply used to validate the shape of the pseudo curve in testing
