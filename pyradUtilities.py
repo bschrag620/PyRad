@@ -3,8 +3,10 @@ import os
 import sys
 try:
     import urllib.request as urlrequest
+    import urllib.error as urlexception
 except ImportError:
-    import urllib3 as urlrequest
+    import urllib3.request as urlrequest
+    import urllib3.exceptions as urlexception
 import datetime
 import numpy as np
 
@@ -166,10 +168,10 @@ def downloadMolParam():
     url = 'http://hitran.org/media/molparam.txt'
     try:
         request = urlrequest.urlopen(url)
-    except urlrequest.HTTPError:
+    except urlexception.HTTPError:
         print('Can not retrieve file at %s. Exiting.' % url)
         return False
-    except urlrequest.URLError:
+    except urlexception.URLError:
         print('Can not connect. Exiting')
         return False
     chunkSize = 1024 * 64
@@ -207,14 +209,14 @@ def downloadHitran(path, globalID, waveMin, waveMax):
           '&request_params=%s' % params
     try:
         request = urlrequest.urlopen(url)
-    except urlrequest.HTTPError:
+    except urlexception.HTTPError:
         print('Can not retrieve data for given parameters.')
         openFile = open(path, 'wb')
         openFile.write(bytes('# no data available for %s, range %s-%s' %
                              (globalID, waveMin, waveMax), 'utf-8'))
         openFile.close()
         request = False
-    except urlrequest.URLError:
+    except urlexception.URLError:
         print('Can not connect to %s' % str(url))
         request = False
     dirLength = len(cwd)
