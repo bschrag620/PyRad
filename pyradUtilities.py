@@ -17,8 +17,7 @@ molParamsFile = '%s/molparams.txt' % dataDir
 debuggerFilePath = '%s/logger.txt' % cwd
 now = datetime.datetime.now()
 debuggerFile = open(debuggerFilePath, 'wb')
-timeString = '%s\n' % now.strftime("%Y-%m-%d %H:%M:%S")
-debuggerFile.write(timeString.encode('utf-8'))
+debuggerFile.write(bytes('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"), 'utf-8'))
 debuggerFile.close()
 
 
@@ -67,7 +66,7 @@ def openReturnLines(fullPath):
         lineList.pop(0)
     return lineList
 
-
+  
 def writeDictListToFile(dictionary, fullPath, comments=None, mode='wb'):
     openFile = open(fullPath, mode)
     if comments:
@@ -114,9 +113,7 @@ def getMolParamsFromHitranFile():
         logToFile('for loop row: %s' % row)
         cells = row.split()
         logToFile('for loop cells: %s' % cells)
-        if not cells:
-            pass
-        elif cells[0].lower() in MOLECULE_ID:
+        if cells[0].lower() in MOLECULE_ID:
             localIso = 0
             haveMolecule = True
             moleculeShortName = cells[0].lower()

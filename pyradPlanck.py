@@ -1,15 +1,12 @@
-import scipy.constants as spc
 import matplotlib.pyplot as plt
 import numpy as np
 
-##initilize the plot with some basic parameters:
-#plt.grid(True)
-#plt.margins(x=0, y=.01)
-
-## some basic constants
-c = spc.c   #speed of light in m
-h = spc.h   #planck's constant
-k = spc.k   #boltzmann constant
+k = 1.38064852E-23
+c = 299792458.0
+h = 6.62607004e-34
+pi = 3.141592653589793
+t0 = 296
+p0 = 1013.25
 
         #all plank functions follow the basic form a/(e**b - 1)
 def planck(a,b):
