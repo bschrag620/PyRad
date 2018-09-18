@@ -3,16 +3,18 @@ import numpy as np
 import pyradUtilities as utils
 
 
-t0 = 296
-k = 1.38064852E-23
-c = 299792458.0
-pi = 3.141592653589793
-p0 = 1013.25
-
 #cachedVoigt = utils.getCurves('voigt', utils.BASE_RESOLUTION)
 cachedLorentz = utils.getCurves('lorentz', utils.BASE_RESOLUTION)
 cachedGaussian = utils.getCurves('gaussian', utils.BASE_RESOLUTION)
 print('\n', end='\r')
+
+h = 6.62607004e-34
+pi = 3.141592653589793
+k = 1.38064852E-23
+c = 299792458.0
+t0 = 296
+p0 = 1013.25
+cachedCurves = utils.getCurves('voigt')
 
 
 def gaussianHW(wavenumber, t, m):
