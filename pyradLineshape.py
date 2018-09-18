@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 import pyradUtilities as utils
 
@@ -8,9 +9,10 @@ c = 299792458.0
 pi = 3.141592653589793
 p0 = 1013.25
 
-cachedVoigt = utils.getCurves('voigt', utils.BASE_RESOLUTION)
+#cachedVoigt = utils.getCurves('voigt', utils.BASE_RESOLUTION)
 cachedLorentz = utils.getCurves('lorentz', utils.BASE_RESOLUTION)
 cachedGaussian = utils.getCurves('gaussian', utils.BASE_RESOLUTION)
+print('\n', end='\r')
 
 
 def gaussianHW(wavenumber, t, m):
@@ -24,31 +26,48 @@ def lorentzHW(airHalfWidth, selfHalfWidth, P, T, q, tExponent):
 
 
 def gaussianLineShape(halfWidth, xValue):
+    if isinstance(xValue, np.ndarray) and str(halfWidth) in cachedGaussian:
+        length = len(xValue)
+        cachedCurve = cachedGaussian[str(halfWidth)]
+        if len(cachedCurve) >= length:
+            return cachedCurve[:length]
     """Returns the right half of a gaussian curve, used for temp broadening in low pressure scenarios"""
     lineShape = np.sqrt(np.log(2) / np.pi) / halfWidth * np.exp(-(xValue / halfWidth) ** 2 * np.log(2))
+    cachedGaussian[halfWidth] = lineShape
     return lineShape
 
 
 def lorentzLineShape(halfWidth, xValue):
+    if isinstance(xValue, np.ndarray) and str(halfWidth) in cachedLorentz:
+        length = len(xValue)
+        cachedCurve = cachedLorentz[str(halfWidth)]
+        if len(cachedCurve) >= length:
+            return cachedCurve[:length]
     """Returns the right half of a lorentzian curve."""
     lineShape = halfWidth / (pi * (xValue**2 + halfWidth**2))
+    cachedLorentz[halfWidth] = lineShape
     return lineShape
 
 
 def pseudoVoigtShape(gHW, lHW, dx, distanceFromCenter):
     gFW = 2 * gHW
     lFW = 2 * lHW
+#    cacheKey = '%s:%s' % (gFW, lFW)
+#    length = int(distanceFromCenter / dx)
+#    if cacheKey in cachedVoigt:
+#        cachedCurve = cachedVoigt[cacheKey]
+#        if len(cachedCurve) >= length:
+#            return cachedCurve[:length]
     fValue = (gFW**5 + 2.69269 * gFW**4 * lFW +
               2.42843 * gFW**3 * lFW**2 +
               4.47163 * gFW**2 * lFW**3 +
               .07842 * gFW * lFW**4 + lFW**5)**.2
-    if fValue in cachedVoigt:
-        return cachedVoigt[fValue]
     nValue = 1.36603 * (lFW / fValue) - .47719 * (lFW / fValue)**2 + .11116 * (lFW / fValue)**3
     curveLength = np.arange(0, distanceFromCenter, dx)
     gCurve = gaussianLineShape(fValue / 2, curveLength)
     lCurve = lorentzLineShape(fValue / 2, curveLength)
     pseudoVoigt = nValue * lCurve + (1 - nValue) * gCurve
+#    cachedVoigt[cacheKey] = pseudoVoigt
     return pseudoVoigt
 
 
@@ -72,7 +91,14 @@ def vvLineShape(halfwidth, waveCenter, step):
     return shape
 
 
+def writeCacheToFile():
+    print('Writing line shapes to file.')
+    utils.writeCurveToFile(cachedGaussian, 'gaussian', utils.BASE_RESOLUTION)
+    utils.writeCurveToFile(cachedLorentz, 'lorentz', utils.BASE_RESOLUTION)
+#   utils.writeCurveToFile(cachedVoigt, 'voigt', utils.BASE_RESOLUTION)
+
 #   simply used to validate the shape of the pseudo curve in testing
+
 '''def V(xValue, lHW, gHW):
     """Return the Voigt line shape at x with Lorentzian component HWHM gamma
     and Gaussian component HWHM alpha."""

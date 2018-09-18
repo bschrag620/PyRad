@@ -1,3 +1,6 @@
+from __future__ import print_function
+from __future__ import division
+import os
 import pyradUtilities as utils
 import pyradLineshape as ls
 import pyradIntensity
@@ -103,8 +106,8 @@ class Line:
 
     @property
     def lorentzHW(self):
-        return ((1 - self.molecule.concentration) * self.airHalfWidth + self.molecule.concentration
-                * self.selfHalfWidth) * (self.layer.P / p0) * (t0 / self.layer.T) ** self.tempExponent
+        return (float((1 - self.molecule.concentration) * self.airHalfWidth + self.molecule.concentration
+                * self.selfHalfWidth) * (self.layer.P / p0) * (t0 / self.layer.T) ** self.tempExponent)
 
     @property
     def gaussianHW(self):
@@ -113,7 +116,7 @@ class Line:
 
 class Isotope(list):
     def __init__(self, number, molecule):
-        super().__init__(self)
+        super(Isotope, self).__init__(self)
         params = utils.readMolParams(number)
         self.globalIsoNumber = params[0]
         self.shortName = params[1]
@@ -177,7 +180,7 @@ class Isotope(list):
         return np.log(1 / self.transmissivity)
 
     def getData(self):
-        print('Getting data for %s, isotope #%s' % (self.molecule.name, self.globalIsoNumber))
+        print('Getting data for %s, isotope %s' % (self.molecule.name, self.globalIsoNumber))
         lineDict = utils.gatherData(self.globalIsoNumber, self.rangeMin, self.rangeMax)
         self.q = utils.getQData(self.globalIsoNumber)
         for line in lineDict:
@@ -194,8 +197,9 @@ class Isotope(list):
         alertInterval = int(len(self) / 20)
         crossSection = np.zeros(int((layer.rangeMax - layer.rangeMin) / layer.resolution))
         for line in self:
-            print('Progress  <%s%s>\t nu=%s' % ('*' * i, '-' * (20 - i), line.wavenumber), end='\r', flush=True)
             if progress > i * alertInterval:
+                print('Progress for %s <%s%s>' % (molecule.name, '*' * i, '-' * (20 - i)), end='\r')
+                os.sys.stdout.flush()
                 i += 1
             progress += 1
             rightCurve = ls.pseudoVoigtShape(line.gaussianHW, line.lorentzHW,
@@ -214,6 +218,7 @@ class Isotope(list):
                 if isBetween(leftIndex, 0, arrayLength):
                     crossSection[leftIndex] += rightCurve[c] * intensity
         self.crossSection = crossSection
+        print('\n', end='\r')
         self.progressCrossSection = True
 
     def linelist(self):
@@ -225,7 +230,7 @@ class Isotope(list):
 
 class Molecule(list):
     def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
-        super().__init__(self)
+        super(Molecule, self).__init__(self)
         self.layer = layer
         self.yAxis = np.copy(layer.yAxis)
         self.xAxis = layer.xAxis
@@ -327,7 +332,7 @@ class Layer(list):
     layerList = []
 
     def __init__(self, depth, T, P, rangeMin, rangeMax, name=False, dynamicResolution=False):
-        super().__init__(self)
+        super(Layer, self).__init__(self)
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
         self.T = T
@@ -412,7 +417,7 @@ def plot(obj, propertyToPlot, fill=True, individualColors=True):
     plt.grid('grey', linewidth=.5, linestyle=':')
     plt.title('%s\nP: %smBars; T: %sK; depth: %scm' % (str(obj), obj.P, obj.T, obj.depth))
     yAxis, fillAxis = returnPlot(obj, propertyToPlot)
-    fig, = plt.plot(obj.xAxis, yAxis, linewidth=1, color='w', alpha=.8, label=obj.name)
+    fig, = plt.plot(obj.xAxis, yAxis, linewidth=.5, color='w', alpha=.8, label=obj.name)
     plt.fill_between(obj.xAxis, fillAxis, yAxis, color='w', alpha=.3 * fill)
     handles = [fig]
     if type(yAxis) is bool:
@@ -423,7 +428,7 @@ def plot(obj, propertyToPlot, fill=True, individualColors=True):
             print('More than 6 elements, only processing first 6...')
         for subPlot, color in zip(obj, COLOR_LIST):
             yAxis, fillAxis = returnPlot(subPlot, propertyToPlot)
-            fig, = plt.plot(subPlot.xAxis, yAxis, linewidth=1, color=color, alpha=.8, label='%s' % subPlot.name)
+            fig, = plt.plot(subPlot.xAxis, yAxis, linewidth=.5, color=color, alpha=.8, label='%s' % subPlot.name)
             handles.append(fig)
             plt.fill_between(subPlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
     legend = plt.legend(handles=handles, frameon=False)
@@ -431,6 +436,9 @@ def plot(obj, propertyToPlot, fill=True, individualColors=True):
     plt.setp(text, color='w')
     plt.show()
 
+
+def cacheCurves():
+    ls.writeCacheToFile()
 
 HITRAN_GLOBAL_ISO = {1: {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 129},
                      2: {1: 7, 2: 8, 3: 9, 4: 10, 5: 11, 6: 12, 7: 13, 8: 14, 9: 121, 10: 15, 11: 120, 12: 122},
