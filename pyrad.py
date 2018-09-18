@@ -206,8 +206,8 @@ class Isotope(list):
                 os.sys.stdout.flush()
                 i += 1
             progress += 1
-            rightCurve = ls.pseudoVoigtShape(line.gaussianHW, line.lorentzHW,
-                                             layer.resolution, layer.distanceFromCenter)
+            xValues = np.arange(0, layer.distanceFromCenter, layer.resolution)
+            rightCurve = ls.pseudoVoigtShape(line.gaussianHW, line.lorentzHW, xValues)
             intensity = pyradIntensity.intensityFactor(line.intensity, line.broadenedLine,
                                                        layer.T, line.lowerEnergy, self.q[layer.T], self.q296)
             arrayIndex = int((line.wavenumber - layer.rangeMin) / layer.resolution)

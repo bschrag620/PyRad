@@ -50,7 +50,7 @@ def lorentzLineShape(halfWidth, xValue):
     return lineShape
 
 
-def pseudoVoigtShape(gHW, lHW, dx, distanceFromCenter):
+def pseudoVoigtShape(gHW, lHW, xValue):
     gFW = 2 * gHW
     lFW = 2 * lHW
 #    cacheKey = '%s:%s' % (gFW, lFW)
@@ -64,9 +64,8 @@ def pseudoVoigtShape(gHW, lHW, dx, distanceFromCenter):
               4.47163 * gFW**2 * lFW**3 +
               .07842 * gFW * lFW**4 + lFW**5)**.2
     nValue = 1.36603 * (lFW / fValue) - .47719 * (lFW / fValue)**2 + .11116 * (lFW / fValue)**3
-    curveLength = np.arange(0, distanceFromCenter, dx)
-    gCurve = gaussianLineShape(fValue / 2, curveLength)
-    lCurve = lorentzLineShape(fValue / 2, curveLength)
+    gCurve = gaussianLineShape(fValue / 2, xValue)
+    lCurve = lorentzLineShape(fValue / 2, xValue)
     pseudoVoigt = nValue * lCurve + (1 - nValue) * gCurve
 #    cachedVoigt[cacheKey] = pseudoVoigt
     return pseudoVoigt
