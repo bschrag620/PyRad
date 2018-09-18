@@ -14,7 +14,6 @@ k = 1.38064852E-23
 c = 299792458.0
 t0 = 296
 p0 = 1013.25
-cachedCurves = utils.getCurves('voigt')
 
 
 def gaussianHW(wavenumber, t, m):
