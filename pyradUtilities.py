@@ -1,8 +1,16 @@
+from __future__ import print_function
 import os
-import urllib.request as urlrequest
+import sys
+try:
+    import urllib.request as urlrequest
+except ImportError:
+    import urllib3 as urlrequest
 import datetime
+import numpy as np
+
 
 cwd = os.getcwd()
+lineSep = os.linesep
 dataDir = '%s/data' % cwd
 curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
@@ -20,7 +28,8 @@ def logToFile(text):
 
 
 def setupDir():
-    print('Verifying data structure...', end='', flush=True)
+    print('Verifying data structure...', end='')
+    sys.stdout.flush()
     directoryList = [dataDir, curvesDir]
     fileList = []
     directoryCheck = True
@@ -34,10 +43,10 @@ def setupDir():
     for directory in directoryList:
         if not os.path.isdir(directory):
             os.makedirs(directory)
-    print('directories checked...', end='', flush=True)
+    print('directories checked...', end='')
+    sys.stdout.flush()
     for file in fileList:
         if not os.path.isfile(file):
-            print('Missing molecule parameters file, creating now...')
             if not os.path.isfile(molParamsFile):
                 downloadMolParam()
             getMolParamsFromHitranFile()
@@ -47,37 +56,52 @@ def setupDir():
 
 def openReturnLines(fullPath):
     if not os.path.isfile(fullPath):
-        return []
+        return False
     openFile = open(fullPath)
     lineList = openFile.readlines()
-    while not lineList[-1]:
-        lineList.pop()
     openFile.close()
+    if not lineList:
+        return False
+    while lineList[0][0] == '#':
+        lineList.pop(0)
     return lineList
 
-
-def writeDictListToFile(dictionary, fullPath):
-    openFile = open(fullPath, 'wb')
+  
+def writeDictListToFile(dictionary, fullPath, comments=None, mode='wb'):
+    openFile = open(fullPath, mode)
+    if comments:
+        openFile.write(comments.encode('utf-8'))
     for key in dictionary:
-        text = '%s,%s\n' % (key, ','.join(str(item) for item in dictionary[key]))
-        openFile.write(bytes(text, 'utf-8'))
+        text = '%s,%s%s' % (key, ','.join(str(item) for item in dictionary[key]), lineSep)
+        openFile.write(text.encode('utf-8'))
     openFile.close()
 
 
-def writeListToFile():
-    pass
-
-
-def getCurves(curveType):
+def getCurves(curveType, res):
     curveDict = {}
+    resDirectory = '%s/res%s' % (curvesDir, res)
+    if not os.path.isdir(resDirectory):
+        os.mkdir(resDirectory)
     if curveType == 'voigt':
-        curveFilePath = '%s/voigt.pyr' % curvesDir
+        curveFilePath = '%s/voigt.pyr' % resDirectory
+    elif curveType == 'lorentz':
+        curveFilePath = '%s/lorentz.pyr' % resDirectory
+    elif curveType == 'gaussian':
+        curveFilePath = '%s/gaussian.pyr' % resDirectory
     rows = openReturnLines(curveFilePath)
+    print('Retrieving %s curves...' % curveType, end='')
     if rows:
         for row in rows:
-            cells = row.split(',')
+            cells = row.strip().split(',')
             key = cells.pop(0)
-            curveDict[key] = cells
+            for i in range(0, len(cells) - 1):
+                if cells[i]:
+                    try:
+                        cells[i] = float(cells[i])
+                    except ValueError:
+                        print(cells[i])
+            cells.pop()
+            curveDict[key] = np.asarray(cells)
     return curveDict
 
 
@@ -104,7 +128,9 @@ def getMolParamsFromHitranFile():
             globalID = HITRAN_GLOBAL_ISO[moleculeID][localIso]
             infoList = [moleculeShortName, moleculeID, IsoN, abundance, q296, gj, molMass]
             isotopeInfo[globalID] = infoList
-            writeDictListToFile({globalID: isotopeInfo[globalID]}, '%s/%s/params.pyr' % (dataDir, globalID))
+            writeDictListToFile({globalID: isotopeInfo[globalID]},
+                                '%s/%s/params.pyr' % (dataDir, globalID),
+                                MOLECULE_PARAM_COMMENTS)
     return isotopeInfo
 
 
@@ -121,7 +147,6 @@ def gatherData(globalIsoId, rangeMin, rangeMax):
             os.makedirs(globalIsoDir)
         filePath = '%s/%s/%s.pyr' % (dataDir, globalIsoId, segment)
         if not os.path.isfile(filePath):
-            print('File not found for %s, range %s-%s. Downloading from HITRAN...' % (globalIsoId, segment, segment + 100))
             downloadHitran(filePath, globalIsoId, segment, segment + 100)
         info.update(readHitranOnlineFile(filePath, rangeMin, rangeMax))
         getQData(globalIsoId)
@@ -184,11 +209,14 @@ def downloadHitran(path, globalID, waveMin, waveMax):
         request = urlrequest.urlopen(url)
     except urlrequest.HTTPError:
         print('Can not retrieve data for given parameters.')
+        openFile = open(path, 'wb')
+        openFile.write(bytes('# no data available for %s, range %s-%s' %
+                             (globalID, waveMin, waveMax), 'utf-8'))
+        openFile.close()
         request = False
     except urlrequest.URLError:
         print('Can not connect to %s' % str(url))
         request = False
-    print('Connected to http://hitran.org, beginning download.')
     dirLength = len(cwd)
     if request:
         i = 0
@@ -200,8 +228,10 @@ def downloadHitran(path, globalID, waveMin, waveMax):
             if not chunk:
                 break
             openFile.write(chunk)
-            print('%s downloaded and written to %s%s' % (chunkSize, path[dirLength:], '.' * i), end='\r', flush=True)
-        print('\n', end='\r')
+            outputText = 'Downloading for isotope %s from and writing to %s%s' \
+                         % (globalID, path[dirLength:], '.' * i)
+            print(outputText, end='\r', flush=True)
+        print('%s%s downloaded.\n' % (outputText, i * chunkSize), end='\r')
         openFile.close()
 
 
@@ -233,6 +263,8 @@ def readHitranOnlineFile(path, waveMin, waveMax):
     pressureShift = 8
     lineListDict = {}
     rows = openReturnLines(path)
+    if not rows:
+        return lineListDict
     for row in rows:
         cell = row.split(',')
         if waveMin < float(cell[wavenumber]):
@@ -278,7 +310,20 @@ def readMolParams(globalIso):
     return [globalIso, shortName, moleculeNum, isoN, abundance, q296, gj, molMass]
 
 
-VERSION = '1.2'
+def writeCurveToFile(curveDict, curveName, res):
+    resDirectory = '%s/res%s' % (curvesDir, res)
+    resFile = '%s/%s.pyr' % (resDirectory, curveName)
+    openFile = open(resFile, 'wb')
+    for key in curveDict:
+        openFile.write(bytes('%s,' % key, 'utf-8'))
+        for value in curveDict[key]:
+            openFile.write(bytes('%s,' % value, 'utf-8'))
+        openFile.write(bytes('\n', 'utf-8'))
+    openFile.close()
+
+
+BASE_RESOLUTION = .01
+VERSION = '1.3'
 titleLine = "***********************              PyRad              ***********************"
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)
 GREETING = "%s\n" \
@@ -292,6 +337,10 @@ GREETING = "%s\n" \
            "\tand so easily accessible.\n\n" \
            "*******************************************************************************" \
            % (titleLine, ' ' * messageGap, VERSION, ' ' * (len(titleLine) - messageGap))
+
+MOLECULE_PARAM_COMMENTS = "#\t#\t#\n" \
+                          "# Molecule params for pyrad\n" \
+                          "#\t#\t#\n"
 
 HITRAN_GLOBAL_ISO = {1: {1: 1,
                          2: 2,
@@ -310,8 +359,7 @@ HITRAN_GLOBAL_ISO = {1: {1: 1,
                          8: 14,
                          9: 121,
                          10: 15,
-                         11: 120,
-                         12: 122},
+                         11: 120},
                      3: {1: 16,
                          2: 17,
                          3: 18,
