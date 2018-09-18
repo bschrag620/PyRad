@@ -64,7 +64,7 @@ def openReturnLines(fullPath):
     openFile.close()
     if not lineList or NULL_TAG in lineList[0]:
         return False
-    while lineList[0][0] == '#':
+    while lineList[0][0] == '#' and len(lineList) > 1:
         lineList.pop(0)
     return lineList
 
