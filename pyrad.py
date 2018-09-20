@@ -333,9 +333,7 @@ class Molecule(list):
 
 
 class Layer(list):
-    layerList = []
-
-    def __init__(self, depth, T, P, rangeMin, rangeMax, name=False, dynamicResolution=False):
+    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere, name=False, dynamicResolution=False):
         super(Layer, self).__init__(self)
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
@@ -347,13 +345,14 @@ class Layer(list):
             self.resolution = utils.BASE_RESOLUTION
         else:
             self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
-        Layer.layerList.append(self)
+        self.atmosphere = atmosphere
+        atmosphere.append(self)
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
         self.crossSection = np.copy(self.yAxis)
         self.progressCrossSection = False
         if not name:
-            name = 'layer %s' % Layer.layerList.index(self)
+            name = 'layer %s' % atmosphere.index(self)
         self.name = name
 
     def __str__(self):
@@ -393,6 +392,11 @@ class Layer(list):
 class Atmosphere(list):
     def __init__(self):
         super(Atmosphere).__init__(self)
+
+    def addLayer(self, depth, T, P, rangeMin, rangeMax, name=False, dynamicResolution=False):
+        newLayer = Layer(depth, T, P, rangeMin, rangeMax, self, name, dynamicResolution)
+        self.append(newLayer)
+        return newLayer
 
 
 def returnPlot(obj, propertyToPlot):
