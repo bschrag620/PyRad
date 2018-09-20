@@ -390,6 +390,11 @@ class Layer(list):
         return molecule
 
 
+class Atmosphere(list):
+    def __init__(self):
+        super(Atmosphere).__init__(self)
+
+
 def returnPlot(obj, propertyToPlot):
     if propertyToPlot == "transmissivity":
         yAxis = getTransmissivity(obj), 1
@@ -443,6 +448,7 @@ def plot(obj, propertyToPlot, fill=True, individualColors=True):
 
 def cacheCurves():
     ls.writeCacheToFile()
+
 
 HITRAN_GLOBAL_ISO = {1: {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 129},
                      2: {1: 7, 2: 8, 3: 9, 4: 10, 5: 11, 6: 12, 7: 13, 8: 14, 9: 121, 10: 15, 11: 120, 12: 122},
@@ -501,7 +507,7 @@ COLOR_LIST = ['xkcd:bright orange',
               'xkcd:light violet',
               'xkcd:green yellow']
 
-
+VERSION = utils.VERSION
 MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'ch4': 6, 'o2': 7, 'no': 8, 'so2': 9,
                'no2': 10, 'nh3': 11, 'hno3': 12, 'oh': 13,
