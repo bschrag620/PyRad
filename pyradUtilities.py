@@ -1,12 +1,7 @@
-from __future__ import print_function
 import os
 import sys
-try:
-    import urllib.request as urlrequest
-    import urllib.error as urlexception
-except ImportError:
-    import urllib3.request as urlrequest
-    import urllib3.exceptions as urlexception
+import urllib.request as urlrequest
+import urllib.error as urlexception
 import datetime
 import numpy as np
 

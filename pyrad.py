@@ -1,5 +1,3 @@
-from __future__ import print_function
-from __future__ import division
 import os
 import pyradUtilities as utils
 import pyradLineshape as ls
@@ -333,6 +331,8 @@ class Molecule(list):
 
 
 class Layer(list):
+    hasAtmosphere = None
+
     def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name=False, dynamicResolution=False):
         super(Layer, self).__init__(self)
         self.rangeMin = rangeMin
@@ -346,7 +346,11 @@ class Layer(list):
         else:
             self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
         if not atmosphere:
-            self.atmosphere = Atmosphere()
+            if not Layer.hasAtmosphere:
+                self.atmosphere = Atmosphere()
+                Layer.hasAtmosphere = self.atmosphere
+            else:
+                self.atmosphere = Layer.hasAtmosphere
         else:
             self.atmosphere = atmosphere
         atmosphere.append(self)
@@ -394,12 +398,15 @@ class Layer(list):
 
 class Atmosphere(list):
     def __init__(self):
-        super(Atmosphere).__init__(self)
+        super().__init__(self)
 
     def addLayer(self, depth, T, P, rangeMin, rangeMax, name=False, dynamicResolution=False):
         newLayer = Layer(depth, T, P, rangeMin, rangeMax, atmosphere=self, name=name, dynamicResolution=dynamicResolution)
         self.append(newLayer)
         return newLayer
+
+    def nextLayerName(self):
+        return 'Layer %s' % len(self)
 
 
 def returnPlot(obj, propertyToPlot):
