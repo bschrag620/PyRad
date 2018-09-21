@@ -87,6 +87,44 @@ def totalLineList(obj):
     return fullList
 
 
+def convertLength(value, units):
+    if units == 'cm':
+        return value
+    elif units in ['m', 'meter']:
+        return value * 100
+    elif units in ['ft', 'feet']:
+        return value * 30.48
+    elif units in ['in', 'inch']:
+        return value * 2.54
+
+
+def convertPressure(value, units):
+    if units == 'mbar':
+        return value
+    elif units in ['atm', 'atmospheres', 'atmosphere']:
+        return value * 1013.25
+    elif units in ['b', 'bar']:
+        return value * 1000
+    elif units in ['pa', 'pascal', 'pascals']:
+        return value / 100
+
+
+def convertRange(value, units):
+    if units == 'cm-1':
+        return value
+    elif units in ['um', 'micrometers', 'micrometer']:
+        return 10000 / value
+
+
+def convertTemperature(value, units):
+    if units[0].upper() == 'K':
+        return value
+    elif units[0].upper() == 'C':
+        return value + 273
+    elif units[0].upper() == 'F':
+        return (value - 32) * 5 / 9 + 273
+
+
 class Line:
     def __init__(self, wavenumber, intensity, einsteinA, airHalfWidth,
                  selfHalfWidth, lowerEnergy, tempExponent, pressureShift, parent):
@@ -331,9 +369,9 @@ class Molecule(list):
 
 
 class Layer(list):
-    hasAtmosphere = None
+    hasAtmosphere = False
 
-    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name=False, dynamicResolution=False):
+    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name=None, dynamicResolution=False):
         super(Layer, self).__init__(self)
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
@@ -345,15 +383,15 @@ class Layer(list):
             self.resolution = utils.BASE_RESOLUTION
         else:
             self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
-        if not atmosphere:
+        if atmosphere:
+            self.atmosphere = atmosphere
+            Layer.hasAtmosphere = atmosphere
+        else:
             if not Layer.hasAtmosphere:
-                self.atmosphere = Atmosphere()
+                self.atmosphere = Atmosphere('generic')
                 Layer.hasAtmosphere = self.atmosphere
             else:
                 self.atmosphere = Layer.hasAtmosphere
-        else:
-            self.atmosphere = atmosphere
-        atmosphere.append(self)
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
         self.crossSection = np.copy(self.yAxis)
@@ -397,16 +435,34 @@ class Layer(list):
 
 
 class Atmosphere(list):
-    def __init__(self):
+    def __init__(self, name):
         super().__init__(self)
+        self.name = name
 
-    def addLayer(self, depth, T, P, rangeMin, rangeMax, name=False, dynamicResolution=False):
+    def __str__(self):
+        return self.name
+
+    def addLayer(self, depth, T, P, rangeMin, rangeMax, name=None, dynamicResolution=False):
+        if not name:
+            name = self.nextLayerName()
         newLayer = Layer(depth, T, P, rangeMin, rangeMax, atmosphere=self, name=name, dynamicResolution=dynamicResolution)
         self.append(newLayer)
         return newLayer
 
     def nextLayerName(self):
         return 'Layer %s' % len(self)
+
+    def returnLayerNames(self):
+        tempList = []
+        for layer in self:
+            tempList.append(layer.name)
+        return tempList
+
+    def returnLayerObjects(self):
+        tempList = []
+        for layer in self:
+            tempList.append(layer)
+        return tempList
 
 
 def returnPlot(obj, propertyToPlot):
@@ -522,6 +578,7 @@ COLOR_LIST = ['xkcd:bright orange',
               'xkcd:green yellow']
 
 VERSION = utils.VERSION
+
 MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'ch4': 6, 'o2': 7, 'no': 8, 'so2': 9,
                'no2': 10, 'nh3': 11, 'hno3': 12, 'oh': 13,
