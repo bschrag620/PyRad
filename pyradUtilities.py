@@ -320,7 +320,7 @@ def writeCurveToFile(curveDict, curveName, res):
 
 
 BASE_RESOLUTION = .01
-VERSION = '1.3'
+VERSION = '1.5'
 titleLine = "***********************              PyRad              ***********************"
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)
 GREETING = "%s\n" \
