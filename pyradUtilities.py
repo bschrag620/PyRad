@@ -64,7 +64,7 @@ def openReturnLines(fullPath):
     openFile.close()
     if not lineList or NULL_TAG in lineList[0]:
         return False
-    while lineList[0][0] == '#':
+    while lineList[0][0] == '#' and len(lineList) > 1:
         lineList.pop(0)
     return lineList
 
@@ -82,6 +82,7 @@ def writeDictListToFile(dictionary, fullPath, comments=None, mode='wb'):
 def getCurves(curveType, res):
     curveDict = {}
     resDirectory = '%s/res%s' % (curvesDir, res)
+    print('Retrieving %s curves...' % curveType, end='', flush=True)
     if not os.path.isdir(resDirectory):
         os.mkdir(resDirectory)
     if curveType == 'voigt':
@@ -91,7 +92,6 @@ def getCurves(curveType, res):
     elif curveType == 'gaussian':
         curveFilePath = '%s/gaussian.pyr' % resDirectory
     rows = openReturnLines(curveFilePath)
-    print('Retrieving %s curves...' % curveType, end='')
     if rows:
         for row in rows:
             cells = row.strip().split(',')
@@ -104,6 +104,7 @@ def getCurves(curveType, res):
                         print(cells[i])
             cells.pop()
             curveDict[key] = np.asarray(cells)
+    print('%s built from cache.' % len(curveDict))
     return curveDict
 
 
@@ -315,7 +316,7 @@ def readMolParams(globalIso):
 def writeCurveToFile(curveDict, curveName, res):
     resDirectory = '%s/res%s' % (curvesDir, res)
     resFile = '%s/%s.pyr' % (resDirectory, curveName)
-    openFile = open(resFile, 'wb')
+    openFile = open(resFile, 'ab')
     for key in curveDict:
         openFile.write(bytes('%s,' % key, 'utf-8'))
         for value in curveDict[key]:

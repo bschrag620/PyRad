@@ -15,7 +15,7 @@ pi = 3.141592653589793
 t0 = 296
 p0 = 1013.25
 t0 = 296
-
+avo =  6.022140857E23
 
 def progressAlert():
     pass
@@ -130,7 +130,7 @@ class Isotope(list):
         self.abundance = params[4]
         self.q296 = params[5]
         self.gj = params[6]
-        self.molMass = params[7]
+        self.molmass = params[7]
         self.molecule = molecule
         self.layer = self.molecule.layer
         self.q = {}
@@ -142,6 +142,10 @@ class Isotope(list):
     @property
     def P(self):
         return self.layer.P
+
+    @property
+    def molMass(self):
+        return self.molmass / 1000 / avo
 
     @property
     def T(self):
@@ -200,14 +204,26 @@ class Isotope(list):
         i = 1
         alertInterval = int(len(self) / 20)
         crossSection = np.zeros(int((layer.rangeMax - layer.rangeMin) / layer.resolution))
+        trackGauss = 0
+        trackLorentz = 0
+        trackVoigt = 0
         for line in self:
             if progress > i * alertInterval:
                 print('Progress for %s <%s%s>' % (molecule.name, '*' * i, '-' * (20 - i)), end='\r')
                 os.sys.stdout.flush()
                 i += 1
             progress += 1
-            rightCurve = ls.pseudoVoigtShape(line.gaussianHW, line.lorentzHW,
-                                             layer.resolution, layer.distanceFromCenter)
+            xValues = np.arange(0, layer.distanceFromCenter, layer.resolution)
+            hwRatio = line.lorentzHW / line.gaussianHW
+            if hwRatio < .01:
+                rightCurve = ls.gaussianLineShape(line.gaussianHW, xValues)
+                trackGauss += 1
+            elif hwRatio > 100:
+                rightCurve = ls.lorentzLineShape(line.lorentzHW, xValues)
+                trackLorentz += 1
+            else:
+                rightCurve = ls.pseudoVoigtShape(line.gaussianHW, line.lorentzHW, xValues)
+                trackVoigt += 1
             intensity = pyradIntensity.intensityFactor(line.intensity, line.broadenedLine,
                                                        layer.T, line.lowerEnergy, self.q[layer.T], self.q296)
             arrayIndex = int((line.wavenumber - layer.rangeMin) / layer.resolution)
@@ -222,7 +238,7 @@ class Isotope(list):
                 if isBetween(leftIndex, 0, arrayLength):
                     crossSection[leftIndex] += rightCurve[c] * intensity
         self.crossSection = crossSection
-        print('\n', end='\r')
+        print('\ngaussian only: %s\t lorentz only: %s\t voigt: %s\n' % (trackGauss, trackLorentz, trackVoigt), end='\r')
         self.progressCrossSection = True
 
     def linelist(self):

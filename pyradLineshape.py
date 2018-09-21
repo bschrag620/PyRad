@@ -6,6 +6,8 @@ import pyradUtilities as utils
 #cachedVoigt = utils.getCurves('voigt', utils.BASE_RESOLUTION)
 cachedLorentz = utils.getCurves('lorentz', utils.BASE_RESOLUTION)
 cachedGaussian = utils.getCurves('gaussian', utils.BASE_RESOLUTION)
+newLorentz = {}
+newGaussian = {}
 print('\n', end='\r')
 
 h = 6.62607004e-34
@@ -35,6 +37,7 @@ def gaussianLineShape(halfWidth, xValue):
     """Returns the right half of a gaussian curve, used for temp broadening in low pressure scenarios"""
     lineShape = np.sqrt(np.log(2) / np.pi) / halfWidth * np.exp(-(xValue / halfWidth) ** 2 * np.log(2))
     cachedGaussian[halfWidth] = lineShape
+    newGaussian[halfWidth] = lineShape
     return lineShape
 
 
@@ -47,10 +50,11 @@ def lorentzLineShape(halfWidth, xValue):
     """Returns the right half of a lorentzian curve."""
     lineShape = halfWidth / (pi * (xValue**2 + halfWidth**2))
     cachedLorentz[halfWidth] = lineShape
+    newLorentz[halfWidth] = lineShape
     return lineShape
 
 
-def pseudoVoigtShape(gHW, lHW, dx, distanceFromCenter):
+def pseudoVoigtShape(gHW, lHW, xValue):
     gFW = 2 * gHW
     lFW = 2 * lHW
 #    cacheKey = '%s:%s' % (gFW, lFW)
@@ -64,9 +68,8 @@ def pseudoVoigtShape(gHW, lHW, dx, distanceFromCenter):
               4.47163 * gFW**2 * lFW**3 +
               .07842 * gFW * lFW**4 + lFW**5)**.2
     nValue = 1.36603 * (lFW / fValue) - .47719 * (lFW / fValue)**2 + .11116 * (lFW / fValue)**3
-    curveLength = np.arange(0, distanceFromCenter, dx)
-    gCurve = gaussianLineShape(fValue / 2, curveLength)
-    lCurve = lorentzLineShape(fValue / 2, curveLength)
+    gCurve = gaussianLineShape(fValue / 2, xValue)
+    lCurve = lorentzLineShape(fValue / 2, xValue)
     pseudoVoigt = nValue * lCurve + (1 - nValue) * gCurve
 #    cachedVoigt[cacheKey] = pseudoVoigt
     return pseudoVoigt
@@ -76,26 +79,24 @@ def broadenLineList(p, wavenumber, pressureShift):
     new = wavenumber + pressureShift * p / p0
     return new
 
-
-def vvLineShape(halfwidth, waveCenter, step):
-    x = waveCenter
-    y = (halfwidth * waveCenter) / (pi * waveCenter) * (1 / (waveCenter**2 + halfwidth**2) + 1/(waveCenter**2 + halfwidth**2))
-    shape = []
-    xRange = []
-    tolerance = y / 500
-    while y > tolerance:
-        shape.append(y)
-        xRange.append(x)
-        x += step
-        y = (halfwidth * x) / (pi * waveCenter) * \
-            (1 / ((x - waveCenter) ** 2 + halfwidth ** 2) + 1 / ((waveCenter + x) ** 2 + halfwidth ** 2))
-    return shape
+# according to spectralcalc, this function is necessary for calculating lineshapes close to wavenumber 0.
+# the issue arises because to the left side of the center wavenumber the other line functions approach 0,
+# and cause the line shape to become skewed. However, I'm only calculating the right side of the curve.
+# I believe this should mean my curves stay in tact as the absorption bands approach 0. So for now,
+# this function won't be used.
+def vvLineShape(halfwidth, centerWavenumber, xValues):
+    xValues += centerWavenumber
+    vvRightCurve = halfwidth * xValues / pi / centerWavenumber * \
+                    ((1 / ((xValues - centerWavenumber)**2 + halfwidth ** 2) +
+                    1 / ((xValues + centerWavenumber)**2 + halfwidth ** 2)))
+    return vvRightCurve
 
 
 def writeCacheToFile():
-    print('Writing line shapes to file.')
-    utils.writeCurveToFile(cachedGaussian, 'gaussian', utils.BASE_RESOLUTION)
-    utils.writeCurveToFile(cachedLorentz, 'lorentz', utils.BASE_RESOLUTION)
+    print('Writing new line shapes to file...', end='', flush=True)
+    utils.writeCurveToFile(newGaussian, 'gaussian', utils.BASE_RESOLUTION)
+    utils.writeCurveToFile(newLorentz, 'lorentz', utils.BASE_RESOLUTION)
+    print('%s added.' % (len(newLorentz) + len(newGaussian)))
 #   utils.writeCurveToFile(cachedVoigt, 'voigt', utils.BASE_RESOLUTION)
 
 #   simply used to validate the shape of the pseudo curve in testing

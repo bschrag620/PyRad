@@ -32,11 +32,11 @@ also a choice to set fill=False if you prefer to see just the outline.
 Questions or bugs, email brad.schrag@gmail.com
 """
 
-layer = pyrad.Layer(10, 300, 1013.25, 640, 690)
+layer = pyrad.Layer(400, 233, 10.1325, 640, 690)
 co2 = layer.addMolecule(2, ppm=400, isotopeDepth=1)
 h2o = layer.addMolecule('h2o', percentage=.4)
 ozone = layer.addMolecule('o3', ppb=10)
-pyrad.plot(layer, 'transmissivity')
+pyrad.plot(co2, 'transmissivity')
 pyrad.cacheCurves()
 
 """
