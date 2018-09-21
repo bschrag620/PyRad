@@ -269,12 +269,13 @@ class Isotope(list):
 
 
 class Molecule(list):
-    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
+    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, concentration=None, **abundance):
         super(Molecule, self).__init__(self)
         self.layer = layer
         self.yAxis = np.copy(layer.yAxis)
         self.xAxis = layer.xAxis
         self.crossSection = np.copy(self.yAxis)
+        self.isotopeDepth = isotopeDepth
         try:
             int(shortNameOrMolNum)
             self.ID = int(shortNameOrMolNum)
@@ -287,26 +288,33 @@ class Molecule(list):
             self.append(isoClass)
             if not self.name:
                 self.name = isoClass.shortName
-        self.concentration = 0
         self.progressCrossSection = False
-        for key in abundance:
-            if key == 'ppm':
-                self.setPPM(abundance[key])
-                self.concText = '%sppm' % abundance[key]
-            elif key == 'ppb':
-                self.setPPB(abundance[key])
-                self.concText = '%sppb' % abundance[key]
-            elif key == 'percentage':
-                self.setPercentage(abundance[key])
-                self.concText = '%s%%' % abundance[key]
-            elif key == 'concentration':
-                self.concentration = abundance[key]
-                self.concText = '%s concentration' % abundance[key]
-            else:
-                print('Invalid concentration type. Use ppm, ppb, percentage, or concentration.')
+        if concentration:
+            self.concentration = concentration
+            self.concText = '%s concentration' % concentration
+        else:
+            for key in abundance:
+                if key == 'ppm':
+                    self.setPPM(abundance[key])
+                    self.concText = '%sppm' % abundance[key]
+                elif key == 'ppb':
+                    self.setPPB(abundance[key])
+                    self.concText = '%sppb' % abundance[key]
+                elif key == 'percentage':
+                    self.setPercentage(abundance[key])
+                    self.concText = '%s%%' % abundance[key]
+                elif key == 'concentration':
+                    self.concentration = abundance[key]
+                    self.concText = '%s concentration' % abundance[key]
+                else:
+                    print('Invalid concentration type. Use ppm, ppb, percentage, or concentration.')
 
     def __str__(self):
         return '%s: %s' % (self.name, self.concText)
+
+    def returnCopy(self):
+        newMolecule = Molecule(self.name, self.layer, self.isotopeDepth, self.concentration)
+        return newMolecule
 
     def setPercentage(self, percentage):
         self.concentration = percentage / 100
@@ -379,6 +387,7 @@ class Layer(list):
         self.P = P
         self.depth = depth
         self.distanceFromCenter = self.P / 1013.25 * 5
+        self.dynamicResolution = dynamicResolution
         if not dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
@@ -432,6 +441,20 @@ class Layer(list):
             print('**Warning : Concentrations exceed 1.')
         molecule.getData()
         return molecule
+
+    def returnCopy(self):
+        newCopy = Layer(self.depth, self.T, self.P, self.rangeMin, self.rangeMax,
+                        self.atmosphere, name=self.atmosphere.nextLayerName(), dynamicResolution=self.dynamicResolution)
+        for molecule in self:
+            newMolecule = molecule.returnCopy()
+            newCopy.addMolecule(newMolecule.name, newMolecule.concentration)
+        return newCopy
+
+    def returnMoleculeObjects(self):
+        moleculeList = []
+        for m in self:
+            moleculeList.append(m)
+        return moleculeList
 
 
 class Atmosphere(list):

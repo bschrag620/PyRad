@@ -15,6 +15,8 @@ def receiveInput(inputText, validInputFunction):
 
 
 def validPressure(userInput):
+    if not userInput:
+        return False
     try:
         splitInput = validValueAndUnits.match(userInput)
     except AttributeError:
@@ -35,7 +37,32 @@ def validPressure(userInput):
     return value, unit
 
 
+def validComposition(userInput):
+    if not userInput:
+        return False
+    try:
+        splitInput = validValueAndUnits.match(userInput)
+    except AttributeError:
+        print('Invalid input for concentration. Example: 15ppb. Please try again.')
+        return False
+    unit = splitInput.group(4)
+    if not unit:
+        unit = 'concentration'
+    unit = unit.upper()[0]
+    if unit not in COMPOSITION_UNITS:
+        print('Invalid units. Accepted units are %s.' % ', '.join(COMPOSITION_UNITS))
+        return False
+    textNumber = ''
+    for i in range(1, 4):
+        if splitInput.group(i):
+            textNumber += splitInput.group(i)
+    value = float(textNumber)
+    return value, unit
+
+
 def validTemperature(userInput):
+    if not userInput:
+        return False
     try:
         splitInput = validValueAndUnits.match(userInput)
     except AttributeError:
@@ -57,6 +84,8 @@ def validTemperature(userInput):
 
 
 def validRange(userInput):
+    if not userInput:
+        return False
     try:
         splitInput = validValueAndUnits.match(userInput)
     except AttributeError:
@@ -78,6 +107,8 @@ def validRange(userInput):
 
 
 def validDepth(userInput):
+    if not userInput:
+        return False
     try:
         splitInput = validValueAndUnits.match(userInput)
     except AttributeError:
@@ -99,19 +130,22 @@ def validDepth(userInput):
 
 
 class Menu:
-    def __init__(self, title, entries):
+    def __init__(self, title, entries, previousMenu=None):
         self.title = title
         self.entries = entries
+        self.previousMenu = previousMenu
 
-    def displayMenu(self):
+    def displayMenu(self, promptText=''):
         print('***\tPyrad v%s\t\t***' % pyrad.VERSION)
         print(self.title)
         i = 1
-        validEntry = ['x']
+        validEntry = ['x', 'b']
         for entry in self.entries:
             validEntry.append(str(i))
             print('%s.  %s' % (i, entry.name))
             i += 1
+        if 'Main' not in self.title:
+            print('B.  Previous menu')
         print('X.  Exit')
         validChoice = False
         while not validChoice:
@@ -119,10 +153,11 @@ class Menu:
             if userInput.lower() == 'x':
                 print('Goodbye')
                 exit(1)
+            elif userInput.lower() == 'b' and 'Main' not in self.title:
+                self.previousMenu.displayMenu()
             elif userInput in validEntry:
                 userChoice = self.entries[int(userInput) - 1]
                 if userChoice.nextFunction:
-                    print('userchoice %s' % userChoice.functionParams)
                     userChoice.nextFunction(userChoice.functionParams)
                     validChoice = True
                 elif userChoice.nextMenu:
@@ -143,10 +178,9 @@ class Entry:
         print(self.name, functionParams)
 
 
-def defineLayer(atmosphere):
+def gatherLayerParams():
     rangeMin = -1
     rangeMax = -1
-    defaultLayerName = atmosphere.nextLayerName()
     getDepth = 'Enter the thickness of the layer. \n' \
                'If no units are specified, cm will be assumed. \n' \
                'Other valid units are m, in, ft. :  '
@@ -162,8 +196,6 @@ def defineLayer(atmosphere):
     getRangeMax = 'Enter the maximum range of the observation window. \n' \
                   'If no units are specified, cm-1 will be assumed.\n' \
                   'Other valid unit is um (wavelength) : '
-    getLayerName = 'Enter the name of the layer.\n' \
-                   'If no value given, default will be "%s" : ' % defaultLayerName
 
     depth, depthUnits = receiveInput(getDepth, validDepth)
     pressure, pressureUnits = receiveInput(getPressure, validPressure)
@@ -172,11 +204,22 @@ def defineLayer(atmosphere):
         rangeMin, rangeMinUnits = receiveInput(getRangeMin, validRange)
         if rangeMin < 0:
             print('Range must be positive. Please try again.')
-    while rangeMax < rangeMin:
+    while rangeMax <= rangeMin:
         rangeMax, rangeMaxUnits = receiveInput(getRangeMax, validRange)
-        if rangeMax < rangeMin:
+        if rangeMax <= rangeMin:
             print('Max range must be greater than minimum range. Please try again.')
-    validName =False
+    return depth, depthUnits, pressure, pressureUnits, temperature, temperatureUnits, \
+        rangeMin, rangeMinUnits, rangeMax, rangeMaxUnits
+
+
+def defineLayer(atmosphere):
+    defaultLayerName = atmosphere.nextLayerName()
+    getLayerName = 'Enter the name of the layer.\n' \
+                   'If no value given, default will be "%s" : ' % defaultLayerName
+    depth, depthUnits, pressure, pressureUnits, \
+        temperature, temperatureUnits, rangeMin, rangeMinUnits,\
+        rangeMax, rangeMaxUnits = gatherLayerParams()
+    validName = False
     while not validName:
         layerName = input(getLayerName)
         if layerName not in genericAtmosphere:
@@ -190,53 +233,80 @@ def defineLayer(atmosphere):
     return True
 
 
-def editLayer(empty):
+def editLayer(empty=None):
     entryList = []
     for layer in genericAtmosphere:
-        nextEntry = Entry(layer.name, obj=layer, nextFunction=editParameters, functionParams=layer)
+        nextEntry = Entry(layer.name, obj=layer, nextFunction=chooseParamsOrConcentration, functionParams=layer)
         entryList.append(nextEntry)
-    editLayerMenu = Menu('Edit layer', entryList)
+    editLayerMenu = Menu('Edit layer', entryList, previousMenu=mainMenu)
     editLayerMenu.displayMenu()
 
 
+def editComposition(layer):
+    moleculeList = layer.returnMoleculeObjects()
+    entryList = []
+    for molecule in moleculeList:
+        newEntry = Entry('%s : %s' % (molecule.name, molecule.concText),
+                         functionParams=molecule, nextFunction=gatherMoleculeComposition)
+        entryList.append(newEntry)
+    editCompMenu = Menu('Edit composition', entryList, previousMenu=mainMenu)
+    editCompMenu.displayMenu('Which molecule would you like to edit : ')
+
+
+def chooseParamsOrConcentration(layer):
+    entryList = []
+    editLayerParamsEntry = Entry('Edit layer parameters', nextFunction=editParameters, functionParams=layer)
+    entryList.append(editLayerParamsEntry)
+    duplicateLayerEntry = Entry('Duplicate layer', nextFunction=duplicateObj, functionParams=layer)
+    entryList.append(duplicateLayerEntry)
+    editCompositionEntry = Entry('Edit composition', nextFunction=editComposition, functionParams=layer)
+    entryList.append(editCompositionEntry)
+    chooseParamsMenu = Menu('Edit or duplicate', entryList)
+    chooseParamsMenu.displayMenu()
+
+
+def gatherMoleculeComposition(obj=None):
+    validInput = False
+    while not validInput:
+        composition, units = receiveInput('Enter the molecule composition. If no units entered, \n'
+                                          'composition will be assumed parts per 1.\n'
+                                          'Other valid units are ppm, ppb, or percentage : ', validComposition)
+    if obj:
+        if units == 'ppm':
+            obj.setPPM(composition)
+        elif units == 'ppb':
+            obj.setPPB(composition)
+        elif 'perc' in units or units == '%':
+            obj.setPercentage(composition)
+        else:
+            obj.setConcentrationPercentage(composition)
+        return
+    else:
+        return composition, units
+
+
+def duplicateObj(obj):
+    newObj = obj.returnCopy()
+    if isinstance(newObj, pyrad.Layer):
+        print(newObj.T, newObj.P, newObj.rangeMin, newObj.rangeMax)
+        genericAtmosphere.addLayer(newObj.depth, newObj.T, newObj.P, newObj.rangeMin, newObj.rangeMax)
+    else:
+        print('Unknown object %s, type %s' % (obj.name, type(obj)))
+    return
+
+
 def editParameters(layer):
+    defaultLayerName = layer.name
+    getLayerName = 'Enter the name of the layer.\n' \
+                   'If no value given, default will be "%s" : ' % defaultLayerName
     print('Current parameters for %s are \n'
           'depth : %scm\n'
           'pressure : %smbar\n'
           'temperature : %sK\n'
           'range : %s-%scm-1\n' % (layer.name, layer.depth, layer.P, layer.T, layer.rangeMin, layer.rangeMax))
-    rangeMin = -1
-    rangeMax = -1
-    defaultLayerName = layer.name
-    getDepth = 'Enter the thickness of the layer. \n' \
-               'If no units are specified, cm will be assumed. \n' \
-               'Other valid units are m, in, ft. :  '
-    getPressure = 'Enter pressure of the layer. \n' \
-                  'If no units are specified, mBar will be assumed. \n' \
-                  'Other valid units are bar, atm, Pa : '
-    getTemperature = 'Enter temperature of the layer. \n' \
-                     'If no units are specified, Kelvin will be assumed.\n' \
-                     'Other valid units are (C)elsius or (F)ahrenheit : '
-    getRangeMin = 'Enter the minimum range of the observation window. \n' \
-                  'If no units are specified, cm-1 will be assumed.\n' \
-                  'Other valid unit is um (wavelength) : '
-    getRangeMax = 'Enter the maximum range of the observation window. \n' \
-                  'If no units are specified, cm-1 will be assumed.\n' \
-                  'Other valid unit is um (wavelength) : '
-    getLayerName = 'Enter the name of the layer.\n' \
-                   'If no value given, default will be "%s" : ' % defaultLayerName
-
-    depth, depthUnits = receiveInput(getDepth, validDepth)
-    pressure, pressureUnits = receiveInput(getPressure, validPressure)
-    temperature, temperatureUnits = receiveInput(getTemperature, validTemperature)
-    while rangeMin < 0:
-        rangeMin, rangeMinUnits = receiveInput(getRangeMin, validRange)
-        if rangeMin < 0:
-            print('Range must be positive. Please try again.')
-    while rangeMax < rangeMin:
-        rangeMax, rangeMaxUnits = receiveInput(getRangeMax, validRange)
-        if rangeMax < rangeMin:
-            print('Max range must be greater than minimum range. Please try again.')
+    depth, depthUnits, pressure, pressureUnits, \
+        temperature, temperatureUnits, rangeMin, rangeMinUnits, \
+        rangeMax, rangeMaxUnits = gatherLayerParams()
     validName = False
     while not validName:
         layerName = input(getLayerName)
@@ -256,14 +326,15 @@ def editParameters(layer):
     return True
 
 
-createLayerEntry = Entry("Create new layer", nextFunction=defineLayer, functionParams=genericAtmosphere)
-editLayerEntry = Entry("Edit layer", nextFunction=editLayer)
-mainMenu = Menu('Pyrad v%s' % pyrad.VERSION, [createLayerEntry, editLayerEntry])
+createLayerEntry = Entry("Create new gas cell", nextFunction=defineLayer, functionParams=genericAtmosphere)
+editLayerEntry = Entry("Edit/duplicate gas cell", nextFunction=editLayer)
+mainMenu = Menu('Main menu', [createLayerEntry, editLayerEntry])
 
 DEPTH_UNITS = ['cm', 'in', 'inches', 'ft', 'feet', 'meter', 'm']
 PRESSURE_UNITS = ['atm', 'bar', 'mbar', 'pa']
 TEMPERATURE_UNITS = ['K', 'C', 'F']
 RANGE_UNITS = ['um', 'cm-1']
+COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc']
 
 while True:
     mainMenu.displayMenu()
