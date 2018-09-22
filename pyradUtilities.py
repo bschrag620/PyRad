@@ -225,7 +225,7 @@ def downloadHitran(path, globalID, waveMin, waveMax):
             if not chunk:
                 break
             openFile.write(chunk)
-            outputText = 'Downloading for isotope %s from and writing to %s%s' \
+            outputText = 'Downloading for isotope %s and writing to %s%s' \
                          % (globalID, path[dirLength:], '.' * i)
             print(outputText, end='\r', flush=True)
         print('%s%s downloaded.\n' % (outputText, i * chunkSize), end='\r')
@@ -317,6 +317,17 @@ def writeCurveToFile(curveDict, curveName, res):
             openFile.write(bytes('%s,' % value, 'utf-8'))
         openFile.write(bytes('\n', 'utf-8'))
     openFile.close()
+
+
+def displayAllMolecules():
+    newLineIter = 0
+    for molecule in MOLECULE_ID.keys():
+        newLineIter += 1
+        print('%s\t' % molecule, end='')
+        if newLineIter == 7:
+            newLineIter = 0
+            print('\n')
+
 
 
 BASE_RESOLUTION = .01

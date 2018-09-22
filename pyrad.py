@@ -124,6 +124,12 @@ def convertTemperature(value, units):
     elif units[0].upper() == 'F':
         return (value - 32) * 5 / 9 + 273
 
+COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc']
+#def convertConcentration(value, units):
+
+#    if units == 'ppm':
+
+
 
 class Line:
     def __init__(self, wavenumber, intensity, einsteinA, airHalfWidth,
@@ -269,13 +275,14 @@ class Isotope(list):
 
 
 class Molecule(list):
-    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, concentration=None, **abundance):
+    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
         super(Molecule, self).__init__(self)
         self.layer = layer
         self.yAxis = np.copy(layer.yAxis)
         self.xAxis = layer.xAxis
         self.crossSection = np.copy(self.yAxis)
         self.isotopeDepth = isotopeDepth
+        self.concText = ''
         try:
             int(shortNameOrMolNum)
             self.ID = int(shortNameOrMolNum)
@@ -289,44 +296,44 @@ class Molecule(list):
             if not self.name:
                 self.name = isoClass.shortName
         self.progressCrossSection = False
-        if concentration:
-            self.concentration = concentration
-            self.concText = '%s concentration' % concentration
-        else:
-            for key in abundance:
-                if key == 'ppm':
-                    self.setPPM(abundance[key])
-                    self.concText = '%sppm' % abundance[key]
-                elif key == 'ppb':
-                    self.setPPB(abundance[key])
-                    self.concText = '%sppb' % abundance[key]
-                elif key == 'percentage':
-                    self.setPercentage(abundance[key])
-                    self.concText = '%s%%' % abundance[key]
-                elif key == 'concentration':
-                    self.concentration = abundance[key]
-                    self.concText = '%s concentration' % abundance[key]
-                else:
-                    print('Invalid concentration type. Use ppm, ppb, percentage, or concentration.')
+        for key in abundance:
+            if key == 'ppm':
+                self.setPPM(abundance[key])
+            elif key == 'ppb':
+                self.setPPB(abundance[key])
+            elif key == 'percentage' or key == 'perc' or key == '%':
+                self.setPercentage(abundance[key])
+            elif key == 'concentration':
+                self.concentration = abundance[key]
+
+            else:
+                print('Invalid concentration type. Use ppm, ppb, percentage, or concentration.')
 
     def __str__(self):
         return '%s: %s' % (self.name, self.concText)
 
     def returnCopy(self):
-        newMolecule = Molecule(self.name, self.layer, self.isotopeDepth, self.concentration)
+        valueUnit = self.concText.split()
+        tempDict = {valueUnit[1]: float(valueUnit[0])}
+        newMolecule = Molecule(self.name, self.layer, isotopeDepth=int(self.isotopeDepth), **tempDict)
+        newMolecule.getData()
         return newMolecule
 
     def setPercentage(self, percentage):
         self.concentration = percentage / 100
+        self.concText = '%s %%' % percentage
 
     def setPPM(self, ppm):
         self.concentration = ppm * 10**-6
+        self.concText = '%s ppm' % ppm
 
     def setPPB(self, ppb):
         self.concentration = ppb * 10**-8
+        self.concText = '%s ppb' % ppb
 
     def setConcentrationPercentage(self, percentage):
         self.setPPM(10000 * percentage)
+        self.concText = '%s concentration' % percentage
 
     def getData(self):
         for isotope in self:
@@ -379,7 +386,7 @@ class Molecule(list):
 class Layer(list):
     hasAtmosphere = False
 
-    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name=None, dynamicResolution=False):
+    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name='', dynamicResolution=False):
         super(Layer, self).__init__(self)
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
@@ -388,25 +395,29 @@ class Layer(list):
         self.depth = depth
         self.distanceFromCenter = self.P / 1013.25 * 5
         self.dynamicResolution = dynamicResolution
+        print(atmosphere.name)
         if not dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
             self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
-        if atmosphere:
-            self.atmosphere = atmosphere
-            Layer.hasAtmosphere = atmosphere
-        else:
+        if not atmosphere:
+            print(' no atmosphere provided')
+        if not atmosphere:
             if not Layer.hasAtmosphere:
                 self.atmosphere = Atmosphere('generic')
                 Layer.hasAtmosphere = self.atmosphere
             else:
                 self.atmosphere = Layer.hasAtmosphere
+        else:
+            self.atmosphere = atmosphere
+            self.hasAtmosphere = atmosphere
+        print('layer initiated with atm : %s' % self.atmosphere.name)
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
         self.crossSection = np.copy(self.yAxis)
         self.progressCrossSection = False
         if not name:
-            name = 'layer %s' % atmosphere.index(self)
+            name = 'layer %s' % self.atmosphere.nextLayerName()
         self.name = name
 
     def __str__(self):
@@ -447,7 +458,7 @@ class Layer(list):
                         self.atmosphere, name=self.atmosphere.nextLayerName(), dynamicResolution=self.dynamicResolution)
         for molecule in self:
             newMolecule = molecule.returnCopy()
-            newCopy.addMolecule(newMolecule.name, newMolecule.concentration)
+            newCopy.append(newMolecule)
         return newCopy
 
     def returnMoleculeObjects(self):
@@ -464,6 +475,9 @@ class Atmosphere(list):
 
     def __str__(self):
         return self.name
+
+    def __bool__(self):
+        return True
 
     def addLayer(self, depth, T, P, rangeMin, rangeMax, name=None, dynamicResolution=False):
         if not name:
