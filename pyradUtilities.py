@@ -1,12 +1,7 @@
-from __future__ import print_function
 import os
 import sys
-try:
-    import urllib.request as urlrequest
-    import urllib.error as urlexception
-except ImportError:
-    import urllib3.request as urlrequest
-    import urllib3.exceptions as urlexception
+import urllib.request as urlrequest
+import urllib.error as urlexception
 import datetime
 import numpy as np
 
@@ -231,7 +226,7 @@ def downloadHitran(path, globalID, waveMin, waveMax):
             if not chunk:
                 break
             openFile.write(chunk)
-            outputText = 'Downloading for isotope %s from and writing to %s%s' \
+            outputText = 'Downloading for isotope %s and writing to %s%s' \
                          % (globalID, path[dirLength:], '.' * i)
             print(outputText, end='\r', flush=True)
         print('%s%s downloaded.\n' % (outputText, i * chunkSize), end='\r')
@@ -325,9 +320,38 @@ def writeCurveToFile(curveDict, curveName, res):
     openFile.close()
 
 
+def displayAllMolecules():
+    newLineIter = 0
+    for molecule in MOLECULE_ID.keys():
+        newLineIter += 1
+        print('%s\t' % molecule, end='')
+        if newLineIter == 7:
+            newLineIter = 0
+            print('\n')
+
+
 BASE_RESOLUTION = .01
-VERSION = '1.3'
-titleLine = "***********************              PyRad              ***********************"
+
+MOLECULE_PARAM_COMMENTS = "#\t#\t#\n" \
+                          "# Molecule params for pyrad\n" \
+                          "#\t#\t#\n"
+
+TEXT_COLORS = {'boldMagenta': '\x1b[1;31;48m',
+               'boldLime': '\x1b[1;32;48m',
+               'boldBlue': '\x1b[1;34;48m',
+               'boldCyan': '\x1b[1;36;48m',
+               'boldWhite': '\x1b[1;30;48m',
+               'underlineWhite': '\x1b[4;30;48m',
+               'underlineMagenta': '\x1b[4;31;48m',
+               'underlineLime': '\x1b[4;32;48m',
+               'underlineCyan': '\x1b[4;36;48m',
+               'regularMagenta': '\x1b[0;31;48m',
+               'regularLime': '\x1b[0;32;48m',
+               'colorEnd': '\x1b[0m'}
+
+VERSION = '1.5'
+titleLine = "%s***********************              PyRad              ***********************%s" \
+            % (TEXT_COLORS['underlineCyan'], TEXT_COLORS['colorEnd'])
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)
 GREETING = "%s\n" \
            "%sv%s%s\n" \
@@ -341,10 +365,12 @@ GREETING = "%s\n" \
            "*******************************************************************************" \
            % (titleLine, ' ' * messageGap, VERSION, ' ' * (len(titleLine) - messageGap))
 
+
 MOLECULE_PARAM_COMMENTS = "#\t#\t#\n" \
                           "# Molecule params for pyrad\n" \
                           "#\t#\t#\n"
 NULL_TAG = '#/null/#'
+
 
 HITRAN_GLOBAL_ISO = {1: {1: 1,
                          2: 2,
