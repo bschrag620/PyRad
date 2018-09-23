@@ -347,6 +347,7 @@ TEXT_COLORS = {'boldMagenta': '\x1b[1;31;48m',
                'underlineCyan': '\x1b[4;36;48m',
                'regularMagenta': '\x1b[0;31;48m',
                'regularLime': '\x1b[0;32;48m',
+               'regularCyan': '\x1b[0;36;48',
                'colorEnd': '\x1b[0m'}
 
 VERSION = '1.5'

@@ -411,13 +411,10 @@ class Layer(list):
         self.depth = depth
         self.distanceFromCenter = self.P / 1013.25 * 5
         self.dynamicResolution = dynamicResolution
-        print(atmosphere.name)
         if not dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
             self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
-        if not atmosphere:
-            print(' no atmosphere provided')
         if not atmosphere:
             if not Layer.hasAtmosphere:
                 self.atmosphere = Atmosphere('generic')
@@ -427,7 +424,6 @@ class Layer(list):
         else:
             self.atmosphere = atmosphere
             self.hasAtmosphere = atmosphere
-        print('layer initiated with atm : %s' % self.atmosphere.name)
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
         self.crossSection = np.copy(self.yAxis)

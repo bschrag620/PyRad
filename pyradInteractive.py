@@ -118,10 +118,10 @@ def editLayer(layer):
           '%spressure : %s%smbar\n'
           '%stemperature : %s%sK\n'
           '%srange : %s%s-%scm-1%s\n' % (colors['regularLime'], layer.name, colors['colorEnd'],
-                                         colors['regularLime'], colors['boldCyan'], layer.depth,
-                                         colors['regularLime'], colors['boldCyan'], layer.P,
-                                         colors['regularLime'], colors['boldCyan'], layer.T,
-                                         colors['regularLime'], colors['boldCyan'], layer.rangeMin,
+                                         colors['regularLime'], colors['regularCyan'], layer.depth,
+                                         colors['regularLime'], colors['regularCyan'], layer.P,
+                                         colors['regularLime'], colors['regularCyan'], layer.T,
+                                         colors['regularLime'], colors['regularCyan'], layer.rangeMin,
                                          layer.rangeMax, colors['colorEnd']))
     depth, depthUnits, pressure, pressureUnits, \
         temperature, temperatureUnits, rangeMin, rangeMinUnits, \
