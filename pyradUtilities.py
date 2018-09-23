@@ -57,9 +57,9 @@ def openReturnLines(fullPath):
     openFile = open(fullPath)
     lineList = openFile.readlines()
     openFile.close()
-    if not lineList:
+    if not lineList or NULL_TAG in lineList[0]:
         return False
-    while lineList[0][0] == '#':
+    while lineList[0][0] == '#' and len(lineList) > 1:
         lineList.pop(0)
     return lineList
 
@@ -77,6 +77,7 @@ def writeDictListToFile(dictionary, fullPath, comments=None, mode='wb'):
 def getCurves(curveType, res):
     curveDict = {}
     resDirectory = '%s/res%s' % (curvesDir, res)
+    print('Retrieving %s curves...' % curveType, end='', flush=True)
     if not os.path.isdir(resDirectory):
         os.mkdir(resDirectory)
     if curveType == 'voigt':
@@ -86,7 +87,6 @@ def getCurves(curveType, res):
     elif curveType == 'gaussian':
         curveFilePath = '%s/gaussian.pyr' % resDirectory
     rows = openReturnLines(curveFilePath)
-    print('Retrieving %s curves...' % curveType, end='')
     if rows:
         for row in rows:
             cells = row.strip().split(',')
@@ -99,6 +99,7 @@ def getCurves(curveType, res):
                         print(cells[i])
             cells.pop()
             curveDict[key] = np.asarray(cells)
+    print('%s built from cache.' % len(curveDict))
     return curveDict
 
 
@@ -207,8 +208,8 @@ def downloadHitran(path, globalID, waveMin, waveMax):
     except urlexception.HTTPError:
         print('Can not retrieve data for given parameters.')
         openFile = open(path, 'wb')
-        openFile.write(bytes('# no data available for %s, range %s-%s' %
-                             (globalID, waveMin, waveMax), 'utf-8'))
+        openFile.write(bytes('%s no data available for %s, range %s-%s' %
+                             (NULL_TAG, globalID, waveMin, waveMax), 'utf-8'))
         openFile.close()
         request = False
     except urlexception.URLError:
@@ -310,7 +311,7 @@ def readMolParams(globalIso):
 def writeCurveToFile(curveDict, curveName, res):
     resDirectory = '%s/res%s' % (curvesDir, res)
     resFile = '%s/%s.pyr' % (resDirectory, curveName)
-    openFile = open(resFile, 'wb')
+    openFile = open(resFile, 'ab')
     for key in curveDict:
         openFile.write(bytes('%s,' % key, 'utf-8'))
         for value in curveDict[key]:
@@ -363,6 +364,13 @@ GREETING = "%s\n" \
            "\tand so easily accessible.\n\n" \
            "*******************************************************************************" \
            % (titleLine, ' ' * messageGap, VERSION, ' ' * (len(titleLine) - messageGap))
+
+
+MOLECULE_PARAM_COMMENTS = "#\t#\t#\n" \
+                          "# Molecule params for pyrad\n" \
+                          "#\t#\t#\n"
+NULL_TAG = '#/null/#'
+
 
 HITRAN_GLOBAL_ISO = {1: {1: 1,
                          2: 2,
