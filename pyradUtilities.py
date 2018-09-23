@@ -329,10 +329,28 @@ def displayAllMolecules():
             print('\n')
 
 
-
 BASE_RESOLUTION = .01
+
+MOLECULE_PARAM_COMMENTS = "#\t#\t#\n" \
+                          "# Molecule params for pyrad\n" \
+                          "#\t#\t#\n"
+
+TEXT_COLORS = {'boldMagenta': '\x1b[1;31;48m',
+               'boldLime': '\x1b[1;32;48m',
+               'boldBlue': '\x1b[1;34;48m',
+               'boldCyan': '\x1b[1;36;48m',
+               'boldWhite': '\x1b[1;30;48m',
+               'underlineWhite': '\x1b[4;30;48m',
+               'underlineMagenta': '\x1b[4;31;48m',
+               'underlineLime': '\x1b[4;32;48m',
+               'underlineCyan': '\x1b[4;36;48m',
+               'regularMagenta': '\x1b[0;31;48m',
+               'regularLime': '\x1b[0;32;48m',
+               'colorEnd': '\x1b[0m'}
+
 VERSION = '1.5'
-titleLine = "***********************              PyRad              ***********************"
+titleLine = "%s***********************              PyRad              ***********************%s" \
+            % (TEXT_COLORS['underlineCyan'], TEXT_COLORS['colorEnd'])
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)
 GREETING = "%s\n" \
            "%sv%s%s\n" \
@@ -345,10 +363,6 @@ GREETING = "%s\n" \
            "\tand so easily accessible.\n\n" \
            "*******************************************************************************" \
            % (titleLine, ' ' * messageGap, VERSION, ' ' * (len(titleLine) - messageGap))
-
-MOLECULE_PARAM_COMMENTS = "#\t#\t#\n" \
-                          "# Molecule params for pyrad\n" \
-                          "#\t#\t#\n"
 
 HITRAN_GLOBAL_ISO = {1: {1: 1,
                          2: 2,

@@ -1,6 +1,7 @@
 import pyrad
 import pyradUtilities
 import re
+from pyradUtilities import TEXT_COLORS as colors
 
 existingAtmosphere = False
 validValueAndUnits = re.compile('(\d+)([.])?(\d+)?(\S+)?')
@@ -14,18 +15,20 @@ class Menu:
         self.previousMenu = previousMenu
 
     def displayMenu(self, promptText=''):
-        print('***\tPyrad v%s\t\t***' % pyrad.VERSION)
-        print(self.title)
+        titleStr = str('%s\t%s' % (colors['underlineCyan'], self.title))
+        while len(titleStr) < 60:
+            titleStr += ' '
+        print('%s%s' % (titleStr, colors['colorEnd']))
         i = 1
         validEntry = ['x']
         for entry in self.entries:
             validEntry.append(str(i))
-            print('%s.  %s' % (i, entry.name))
+            print(' %s%s)%s   %s' % (colors['regularMagenta'], i, colors['colorEnd'], entry.name))
             i += 1
         if 'Main' not in self.title:
-            print('B.  Previous menu')
+            print(' %sB)%s   Previous menu' % (colors['regularMagenta'], colors['colorEnd']))
             validEntry.append('b')
-        print('X.  Exit')
+        print(' %sX)%s   Exit' % (colors['regularMagenta'], colors['colorEnd']))
         validChoice = False
         while not validChoice:
             userInput = input('Choose an option: ')
@@ -64,10 +67,11 @@ def createPlot(layerPlotType):
 
 
 def createLayer(atmosphere):
-    print('atmosphere here is %s' % atmosphere.name)
     defaultLayerName = atmosphere.nextLayerName()
-    getLayerName = 'Enter the name of the layer.\n' \
-                   'If no value given, default will be "%s" : ' % defaultLayerName
+    getLayerName = '%sEnter the name of the layer.\t\t%s\n' \
+                   'If no value given, default will be %s"%s"%s : ' \
+                   % (colors['underlineCyan'], colors['colorEnd'],
+                      colors['regularLime'], defaultLayerName, colors['colorEnd'])
     depth, depthUnits, pressure, pressureUnits, \
         temperature, temperatureUnits, rangeMin, rangeMinUnits,\
         rangeMax, rangeMaxUnits = inputLayerParams()
@@ -96,7 +100,7 @@ def createMolecule(layer):
         molecule = layer.addMolecule(moleculeName, **tempdict)
         validInput = False
         while not validInput:
-            ask = input("Add another molecule to the layer (y/n) : ")
+            ask = input("Add another molecule to the layer %s(y/n) :%s " % (colors['regularLime'], colors['colorEnd']))
             if ask.strip().lower() == 'y':
                 validInput = True
             elif ask.strip().lower() == 'n':
@@ -105,13 +109,20 @@ def createMolecule(layer):
 
 def editLayer(layer):
     defaultLayerName = layer.name
-    getLayerName = 'Enter the name of the layer.\n' \
-                   'If no value given, default will be "%s" : ' % defaultLayerName
-    print('Current parameters for %s are \n'
-          'depth : %scm\n'
-          'pressure : %smbar\n'
-          'temperature : %sK\n'
-          'range : %s-%scm-1\n' % (layer.name, layer.depth, layer.P, layer.T, layer.rangeMin, layer.rangeMax))
+    getLayerName = '%sEnter the name of the layer.\t\t%s\n' \
+                   'If no value given, default will be %s"%s"%s : ' \
+                   % (colors['underlineCyan'], colors['colorEnd'],
+                      colors['regularLime'], defaultLayerName, colors['colorEnd'])
+    print('Current parameters for %s%s%s are \n'
+          '%sdepth : %s%scm\n'
+          '%spressure : %s%smbar\n'
+          '%stemperature : %s%sK\n'
+          '%srange : %s%s-%scm-1%s\n' % (colors['regularLime'], layer.name, colors['colorEnd'],
+                                         colors['regularLime'], colors['boldCyan'], layer.depth,
+                                         colors['regularLime'], colors['boldCyan'], layer.P,
+                                         colors['regularLime'], colors['boldCyan'], layer.T,
+                                         colors['regularLime'], colors['boldCyan'], layer.rangeMin,
+                                         layer.rangeMax, colors['colorEnd']))
     depth, depthUnits, pressure, pressureUnits, \
         temperature, temperatureUnits, rangeMin, rangeMinUnits, \
         rangeMax, rangeMaxUnits = inputLayerParams()
@@ -137,21 +148,33 @@ def editLayer(layer):
 def inputLayerParams():
     rangeMin = -1
     rangeMax = -1
-    getDepth = 'Enter the thickness of the layer. \n' \
-               'If no units are specified, cm will be assumed. \n' \
-               'Other valid units are m, in, ft. :  '
-    getPressure = 'Enter pressure of the layer. \n' \
-                  'If no units are specified, mBar will be assumed. \n' \
-                  'Other valid units are bar, atm, Pa : '
-    getTemperature = 'Enter temperature of the layer. \n' \
-                     'If no units are specified, Kelvin will be assumed.\n' \
-                     'Other valid units are (C)elsius or (F)ahrenheit : '
-    getRangeMin = 'Enter the minimum range of the observation window. \n' \
-                  'If no units are specified, cm-1 will be assumed.\n' \
-                  'Other valid unit is um (wavelength) : '
-    getRangeMax = 'Enter the maximum range of the observation window. \n' \
-                  'If no units are specified, cm-1 will be assumed.\n' \
-                  'Other valid unit is um (wavelength) : '
+    getDepth = '%sEnter the thickness of the layer.\t\t\t%s\n' \
+               'If no units are specified, %scm%s will be assumed.\n' \
+               'Other valid units are %sm, in, ft.%s :  ' % (colors['underlineCyan'], colors['colorEnd'],
+                                                             colors['regularLime'], colors['colorEnd'],
+                                                             colors['regularLime'], colors['colorEnd'])
+    getPressure = '%sEnter pressure of the layer.\t\t\t%s\n' \
+                  'If no units are specified, %smBar%s will be assumed. \n' \
+                  'Other valid units are %sbar, atm, Pa%s : '% (colors['underlineCyan'], colors['colorEnd'],
+                                                             colors['regularLime'], colors['colorEnd'],
+                                                             colors['regularLime'], colors['colorEnd'])
+    getTemperature = '%sEnter temperature of the layer.\t\t\t%s\n' \
+                     'If no units are specified, %sKelvin%s will be assumed.\n' \
+                     'Other valid units are (%sC%s)elsius or (%sF%s)ahrenheit : '\
+                     % (colors['underlineCyan'], colors['colorEnd'],
+                        colors['regularLime'], colors['colorEnd'],
+                        colors['regularLime'], colors['colorEnd'],
+                        colors['regularLime'], colors['colorEnd'])
+    getRangeMin = '%sEnter the minimum range of the observation window.\t\t\t%s\n' \
+                  'If no units are specified, %scm-1%s will be assumed.\n' \
+                  'Other valid unit is %sum%s (wavelength) : ' % (colors['underlineCyan'], colors['colorEnd'],
+                                                                  colors['regularLime'], colors['colorEnd'],
+                                                                  colors['regularLime'], colors['colorEnd'])
+    getRangeMax = '%sEnter the maximum range of the observation window.\t\t\t%s\n' \
+                  'If no units are specified, %scm-1%s will be assumed.\n' \
+                  'Other valid unit is %sum%s (wavelength) : ' % (colors['underlineCyan'], colors['colorEnd'],
+                                                                  colors['regularLime'], colors['colorEnd'],
+                                                                  colors['regularLime'], colors['colorEnd'])
 
     depth, depthUnits = receiveInput(getDepth, validDepth)
     pressure, pressureUnits = receiveInput(getPressure, validPressure)
@@ -163,21 +186,27 @@ def inputLayerParams():
     while rangeMax <= rangeMin:
         rangeMax, rangeMaxUnits = receiveInput(getRangeMax, validRange)
         if rangeMax <= rangeMin:
-            print('Max range must be greater than minimum range. Please try again.')
+            print('Max range must be greater than minimum range. %sPlease try again.%s'
+                  % (colors['boldMagenta'], colors['colorEnd']))
     return depth, depthUnits, pressure, pressureUnits, temperature, temperatureUnits, \
         rangeMin, rangeMinUnits, rangeMax, rangeMaxUnits
 
 
 def inputMoleculeName():
-    moleculeName = receiveInput('Enter the short molecule name. \n'
-                                'For a full list of options, type help : ', validMoleculeName)
+    moleculeName = receiveInput('%sEnter the short molecule name.\t\t\t%s\n'
+                                'For a full list of options, type %shelp%s : '
+                                % (colors['underlineCyan'], colors['colorEnd'],
+                                   colors['boldMagenta'], colors['colorEnd']), validMoleculeName)
     return moleculeName
 
 
 def inputMoleculeComposition(obj=False):
-    composition, units = receiveInput('Enter the molecule composition. If no units entered, \n'
-                                      'composition will be assumed parts per 1.\n'
-                                      'Other valid units are ppm, ppb, or percentage : ', validComposition)
+    composition, units = receiveInput('%sEnter the molecule composition.\t\t\t%s\n'
+                                      'If no units entered, composition will be assumed %sparts per 1%s.\n'
+                                      'Other valid units are %sppm, ppb, or percentage%s : '
+                                      % (colors['underlineCyan'], colors['colorEnd'],
+                                         colors['regularLime'], colors['colorEnd'],
+                                         colors['regularLime'], colors['colorEnd']), validComposition)
 
     if obj:
         if units == 'ppm':
@@ -285,7 +314,7 @@ def validMoleculeName(userInput):
     elif userInput in pyrad.MOLECULE_ID:
         return userInput
     else:
-        print('Invalid molecule name. Please try again.')
+        print('Invalid molecule name. %sPlease try again.%s' % (colors['boldMagenta'], colors['colorEnd']))
         return False
 
 
@@ -295,7 +324,8 @@ def validPressure(userInput):
     try:
         splitInput = validValueAndUnits.match(userInput)
     except AttributeError:
-        print('Invalid input for pressure. Example: 1.35atm. Please try again.')
+        print('Invalid input for pressure. Example: %s1.35atm%s. %sPlease try again.%s'
+              % (colors['regularLime'], colors['colorEnd'], colors['boldMagenta'], colors['colorEnd']))
         return False
     unit = splitInput.group(4)
     if not unit:
@@ -318,13 +348,15 @@ def validComposition(userInput):
     try:
         splitInput = validValueAndUnits.match(userInput)
     except AttributeError:
-        print('Invalid input for concentration. Example: 15ppb. Please try again.')
+        print('Invalid input for concentration. Example: %s15ppb%s. %sPlease try again.%s'
+              % (colors['regularLime'], colors['colorEnd'], colors['boldMagenta'], colors['colorEnd']))
         return False
     unit = splitInput.group(4)
     if not unit:
         unit = 'concentration'
     if unit not in COMPOSITION_UNITS:
-        print('Invalid units. Accepted units are %s.' % ', '.join(COMPOSITION_UNITS))
+        print('Invalid units. Accepted units are %s%s%s.'
+              % (colors['regularLime'], ', '.join(COMPOSITION_UNITS), colors['colorEnd']))
         return False
     textNumber = ''
     for i in range(1, 4):
@@ -340,14 +372,16 @@ def validTemperature(userInput):
     try:
         splitInput = validValueAndUnits.match(userInput)
     except AttributeError:
-        print('Invalid input for temperature. Example: 20C. Please try again.')
+        print('Invalid input for temperature. Example: %s20C%s. %sPlease try again.%s'
+              % (colors['regularLime'], colors['colorEnd'], colors['boldMagenta'], colors['colorEnd']))
         return False
     unit = splitInput.group(4)
     if not unit:
         unit = 'K'
     unit = unit.upper()[0]
     if unit not in TEMPERATURE_UNITS:
-        print('Invalid units. Accepted units are %s.' % ', '.join(TEMPERATURE_UNITS))
+        print('Invalid units. Accepted units are %s%s.%s'
+              % (colors['regularLime'], ', '.join(TEMPERATURE_UNITS), colors['colorEnd']))
         return False
     textNumber = ''
     for i in range(1, 4):
