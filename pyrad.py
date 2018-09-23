@@ -1,5 +1,3 @@
-from __future__ import print_function
-from __future__ import division
 import os
 import pyradUtilities as utils
 import pyradLineshape as ls
@@ -87,6 +85,50 @@ def totalLineList(obj):
     for item in obj:
         fullList += totalLineList(item)
     return fullList
+
+
+def convertLength(value, units):
+    if units == 'cm':
+        return value
+    elif units in ['m', 'meter']:
+        return value * 100
+    elif units in ['ft', 'feet']:
+        return value * 30.48
+    elif units in ['in', 'inch']:
+        return value * 2.54
+
+
+def convertPressure(value, units):
+    if units == 'mbar':
+        return value
+    elif units in ['atm', 'atmospheres', 'atmosphere']:
+        return value * 1013.25
+    elif units in ['b', 'bar']:
+        return value * 1000
+    elif units in ['pa', 'pascal', 'pascals']:
+        return value / 100
+
+
+def convertRange(value, units):
+    if units == 'cm-1':
+        return value
+    elif units in ['um', 'micrometers', 'micrometer']:
+        return 10000 / value
+
+
+def convertTemperature(value, units):
+    if units[0].upper() == 'K':
+        return value
+    elif units[0].upper() == 'C':
+        return value + 273
+    elif units[0].upper() == 'F':
+        return (value - 32) * 5 / 9 + 273
+
+COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc']
+#def convertConcentration(value, units):
+
+#    if units == 'ppm':
+
 
 
 class Line:
@@ -255,6 +297,8 @@ class Molecule(list):
         self.yAxis = np.copy(layer.yAxis)
         self.xAxis = layer.xAxis
         self.crossSection = np.copy(self.yAxis)
+        self.isotopeDepth = isotopeDepth
+        self.concText = ''
         try:
             int(shortNameOrMolNum)
             self.ID = int(shortNameOrMolNum)
@@ -267,38 +311,45 @@ class Molecule(list):
             self.append(isoClass)
             if not self.name:
                 self.name = isoClass.shortName
-        self.concentration = 0
         self.progressCrossSection = False
         for key in abundance:
             if key == 'ppm':
                 self.setPPM(abundance[key])
-                self.concText = '%sppm' % abundance[key]
             elif key == 'ppb':
                 self.setPPB(abundance[key])
-                self.concText = '%sppb' % abundance[key]
-            elif key == 'percentage':
+            elif key == 'percentage' or key == 'perc' or key == '%':
                 self.setPercentage(abundance[key])
-                self.concText = '%s%%' % abundance[key]
             elif key == 'concentration':
                 self.concentration = abundance[key]
-                self.concText = '%s concentration' % abundance[key]
+
             else:
                 print('Invalid concentration type. Use ppm, ppb, percentage, or concentration.')
 
     def __str__(self):
         return '%s: %s' % (self.name, self.concText)
 
+    def returnCopy(self):
+        valueUnit = self.concText.split()
+        tempDict = {valueUnit[1]: float(valueUnit[0])}
+        newMolecule = Molecule(self.name, self.layer, isotopeDepth=int(self.isotopeDepth), **tempDict)
+        newMolecule.getData()
+        return newMolecule
+
     def setPercentage(self, percentage):
         self.concentration = percentage / 100
+        self.concText = '%s %%' % percentage
 
     def setPPM(self, ppm):
         self.concentration = ppm * 10**-6
+        self.concText = '%s ppm' % ppm
 
     def setPPB(self, ppb):
         self.concentration = ppb * 10**-8
+        self.concText = '%s ppb' % ppb
 
     def setConcentrationPercentage(self, percentage):
         self.setPPM(10000 * percentage)
+        self.concText = '%s concentration' % percentage
 
     def getData(self):
         for isotope in self:
@@ -349,9 +400,9 @@ class Molecule(list):
 
 
 class Layer(list):
-    layerList = []
+    hasAtmosphere = False
 
-    def __init__(self, depth, T, P, rangeMin, rangeMax, name=False, dynamicResolution=False):
+    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name='', dynamicResolution=False):
         super(Layer, self).__init__(self)
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
@@ -359,17 +410,30 @@ class Layer(list):
         self.P = P
         self.depth = depth
         self.distanceFromCenter = self.P / 1013.25 * 5
+        self.dynamicResolution = dynamicResolution
+        print(atmosphere.name)
         if not dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
             self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
-        Layer.layerList.append(self)
+        if not atmosphere:
+            print(' no atmosphere provided')
+        if not atmosphere:
+            if not Layer.hasAtmosphere:
+                self.atmosphere = Atmosphere('generic')
+                Layer.hasAtmosphere = self.atmosphere
+            else:
+                self.atmosphere = Layer.hasAtmosphere
+        else:
+            self.atmosphere = atmosphere
+            self.hasAtmosphere = atmosphere
+        print('layer initiated with atm : %s' % self.atmosphere.name)
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
         self.crossSection = np.copy(self.yAxis)
         self.progressCrossSection = False
         if not name:
-            name = 'layer %s' % Layer.layerList.index(self)
+            name = 'layer %s' % self.atmosphere.nextLayerName()
         self.name = name
 
     def __str__(self):
@@ -404,6 +468,54 @@ class Layer(list):
             print('**Warning : Concentrations exceed 1.')
         molecule.getData()
         return molecule
+
+    def returnCopy(self):
+        newCopy = Layer(self.depth, self.T, self.P, self.rangeMin, self.rangeMax,
+                        self.atmosphere, name=self.atmosphere.nextLayerName(), dynamicResolution=self.dynamicResolution)
+        for molecule in self:
+            newMolecule = molecule.returnCopy()
+            newCopy.append(newMolecule)
+        return newCopy
+
+    def returnMoleculeObjects(self):
+        moleculeList = []
+        for m in self:
+            moleculeList.append(m)
+        return moleculeList
+
+
+class Atmosphere(list):
+    def __init__(self, name):
+        super().__init__(self)
+        self.name = name
+
+    def __str__(self):
+        return self.name
+
+    def __bool__(self):
+        return True
+
+    def addLayer(self, depth, T, P, rangeMin, rangeMax, name=None, dynamicResolution=False):
+        if not name:
+            name = self.nextLayerName()
+        newLayer = Layer(depth, T, P, rangeMin, rangeMax, atmosphere=self, name=name, dynamicResolution=dynamicResolution)
+        self.append(newLayer)
+        return newLayer
+
+    def nextLayerName(self):
+        return 'Layer %s' % len(self)
+
+    def returnLayerNames(self):
+        tempList = []
+        for layer in self:
+            tempList.append(layer.name)
+        return tempList
+
+    def returnLayerObjects(self):
+        tempList = []
+        for layer in self:
+            tempList.append(layer)
+        return tempList
 
 
 def returnPlot(obj, propertyToPlot):
@@ -459,6 +571,7 @@ def plot(obj, propertyToPlot, fill=True, individualColors=True):
 
 def cacheCurves():
     ls.writeCacheToFile()
+
 
 HITRAN_GLOBAL_ISO = {1: {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 129},
                      2: {1: 7, 2: 8, 3: 9, 4: 10, 5: 11, 6: 12, 7: 13, 8: 14, 9: 121, 10: 15, 11: 120, 12: 122},
@@ -517,6 +630,7 @@ COLOR_LIST = ['xkcd:bright orange',
               'xkcd:light violet',
               'xkcd:green yellow']
 
+VERSION = utils.VERSION
 
 MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'ch4': 6, 'o2': 7, 'no': 8, 'so2': 9,
