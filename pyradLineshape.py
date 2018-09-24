@@ -34,7 +34,7 @@ def gaussianLineShape(halfWidth, xValue):
         if len(cachedCurve) >= length:
             return cachedCurve[:length]
     """Returns the right half of a gaussian curve, used for temp broadening in low pressure scenarios"""
-    lineShape = np.sqrt(np.log(2) / np.pi) / halfWidth * np.exp(-(xValue / halfWidth) ** 2 * np.log(2))
+    lineShape = np.exp(-xValue**2 / halfWidth**2) / halfWidth / np.sqrt(pi)
     cachedGaussian[halfWidth] = lineShape
     newGaussian[halfWidth] = lineShape
     return lineShape
@@ -47,7 +47,7 @@ def lorentzLineShape(halfWidth, xValue):
         if len(cachedCurve) >= length:
             return cachedCurve[:length]
     """Returns the right half of a lorentzian curve."""
-    lineShape = halfWidth / (pi * (xValue**2 + halfWidth**2))
+    lineShape = halfWidth / pi / (xValue**2 + halfWidth**2)
     cachedLorentz[halfWidth] = lineShape
     newLorentz[halfWidth] = lineShape
     return lineShape
