@@ -3,8 +3,10 @@ import pyradUtilities as utils
 
 
 #cachedVoigt = utils.getCurves('voigt', utils.BASE_RESOLUTION)
-cachedLorentz = utils.getCurves('lorentz', utils.BASE_RESOLUTION)
-cachedGaussian = utils.getCurves('gaussian', utils.BASE_RESOLUTION)
+#cachedLorentz = utils.getCurves('lorentz', utils.BASE_RESOLUTION)
+#cachedGaussian = utils.getCurves('gaussian', utils.BASE_RESOLUTION)
+cachedLorentz = {}
+cachedGaussian = {}
 newLorentz = {}
 newGaussian = {}
 print('\n', end='\r')
