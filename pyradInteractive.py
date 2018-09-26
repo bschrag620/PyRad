@@ -95,8 +95,7 @@ def createMolecule(layer):
         tempdict = {units: concentration}
         molecule = layer.addMolecule(moleculeName, **tempdict)
         while pyrad.totalConcentration(layer) > 1:
-            print('%s, total concentration exceeds 100%. Layer composition must be edited.'
-                  % util.magentaText('***\tWARNING\t***'))
+            print("%s total concentration exceeds 100%%" % util.magentaText('***\tWARNING\t***'))
             menuEditComposition(layer)
         validInput = False
         while not validInput:
@@ -275,10 +274,8 @@ def menuChooseLayerToPlot(empty=None):
 
 def menuEditComposition(layer):
     moleculeList = layer.returnMoleculeObjects()
-    print(len(moleculeList))
     entryList = []
     for molecule in moleculeList:
-        print(molecule)
         newEntry = Entry('%s : %s' % (molecule.name, molecule.concText),
                          functionParams=molecule, nextFunction=inputMoleculeComposition)
         entryList.append(newEntry)
@@ -471,7 +468,7 @@ DEPTH_UNITS = ['cm', 'in', 'inches', 'ft', 'feet', 'meter', 'm']
 PRESSURE_UNITS = ['atm', 'bar', 'mbar', 'pa']
 TEMPERATURE_UNITS = ['K', 'C', 'F']
 RANGE_UNITS = ['um', 'cm-1']
-COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc']
+COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc', 'concentration']
 
 while True:
     menuMain()

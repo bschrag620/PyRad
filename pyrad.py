@@ -308,6 +308,7 @@ class Molecule(list):
         self.crossSection = np.copy(self.yAxis)
         self.isotopeDepth = isotopeDepth
         self.concText = ''
+        self.concentration = 0
         try:
             int(shortNameOrMolNum)
             self.ID = int(shortNameOrMolNum)
@@ -329,8 +330,7 @@ class Molecule(list):
             elif key == 'percentage' or key == 'perc' or key == '%':
                 self.setPercentage(abundance[key])
             elif key == 'concentration':
-                self.concentration = abundance[key]
-
+                self.setConcentration(abundance[key])
             else:
                 print('Invalid concentration type. Use ppm, ppb, percentage, or concentration.')
 
@@ -362,9 +362,8 @@ class Molecule(list):
         self.concText = '%s ppb' % ppb
         resetCrossSection(self)
 
-    def setConcentrationPercentage(self, percentage):
-        self.setPPM(10000 * percentage)
-        self.concText = '%s concentration' % percentage
+    def setConcentration(self, concentration):
+        self.setPPM(concentration * 1E6)
         resetCrossSection(self)
 
     def changeRange(self):
