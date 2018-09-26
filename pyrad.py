@@ -4,6 +4,7 @@ import pyradLineshape as ls
 import pyradIntensity
 import numpy as np
 import matplotlib.pyplot as plt
+import pyradInteractive
 
 c = 299792458.0
 k = 1.38064852E-23
@@ -667,3 +668,6 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'c2h4': 38, 'ch3oh': 39, 'ch3br': 40, 'ch3cn': 41,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
                'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
+
+if __name__ == 'main':
+    pyradInteractive.menuMain()
