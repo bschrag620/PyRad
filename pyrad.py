@@ -42,7 +42,7 @@ def resetData(obj):
         if isinstance(child, Isotope):
             while len(child) > 0:
                 child.pop()
-                child.getData()
+            child.getData()
         else:
             resetData(child)
     resetCrossSection(obj)
@@ -367,6 +367,13 @@ class Molecule(list):
         self.concText = '%s concentration' % percentage
         resetCrossSection(self)
 
+    def changeRange(self):
+        self.yAxis = np.copy(self.layer.yAxis)
+        self.xAxis = np.copy(self.layer.xAxis)
+        for isotope in self:
+            isotope.yAxis = np.copy(self.layer.yAxis)
+            isotope.xAxis = np.copy(self.layer.xAxis)
+
     def getData(self):
         for isotope in self:
             isotope.getData()
@@ -472,6 +479,10 @@ class Layer(list):
     def changeRange(self, rangeMin, rangeMax):
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
+        self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
+        self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
+        for molecule in self:
+            molecule.changeRange()
         resetData(self)
 
     def changeTemperature(self, temperature):
@@ -519,7 +530,7 @@ class Atmosphere(list):
     def __bool__(self):
         return True
 
-    def addLayer(self, depth, T, P, rangeMin, rangeMax, name=None, dynamicResolution=False):
+    def addLayer(self, depth, T, P, rangeMin, rangeMax, name=None, dynamicResolution=True):
         if not name:
             name = self.nextLayerName()
         newLayer = Layer(depth, T, P, rangeMin, rangeMax, atmosphere=self, name=name, dynamicResolution=dynamicResolution)
