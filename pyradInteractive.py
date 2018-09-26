@@ -94,6 +94,10 @@ def createMolecule(layer):
         concentration, units = inputMoleculeComposition()
         tempdict = {units: concentration}
         molecule = layer.addMolecule(moleculeName, **tempdict)
+        while pyrad.totalConcentration(layer) > 1:
+            print('%s, total concentration exceeds 100%. Layer composition must be edited.'
+                  % util.magentaText('***\tWARNING\t***'))
+            menuEditComposition(layer)
         validInput = False
         while not validInput:
             ask = input("Add another molecule to the layer %s " % util.magentaText('(y/n) :'))
@@ -382,6 +386,9 @@ def validComposition(userInput):
         if splitInput.group(i):
             textNumber += splitInput.group(i)
     value = float(textNumber)
+    if value <= 0:
+        print('Concentration must be greater than 0')
+        return False
     return value, unit
 
 
