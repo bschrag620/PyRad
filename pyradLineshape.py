@@ -80,11 +80,14 @@ def broadenLineList(p, wavenumber, pressureShift):
     new = wavenumber + pressureShift * p / p0
     return new
 
+
 # according to spectralcalc, this function is necessary for calculating lineshapes close to wavenumber 0.
 # the issue arises because to the left side of the center wavenumber the other line functions approach 0,
 # and cause the line shape to become skewed. However, I'm only calculating the right side of the curve.
 # I believe this should mean my curves stay in tact as the absorption bands approach 0. So for now,
 # this function won't be used.
+
+
 def vvLineShape(halfwidth, centerWavenumber, xValues):
     xValues += centerWavenumber
     vvRightCurve = halfwidth * xValues / pi / centerWavenumber * \

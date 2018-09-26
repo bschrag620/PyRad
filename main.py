@@ -32,8 +32,7 @@ also a choice to set fill=False if you prefer to see just the outline.
 Questions or bugs, email brad.schrag@gmail.com
 """
 
-atmosphere = pyrad.Atmosphere('null atmosphere')
-layer = pyrad.Layer(10, 300, 1013.25, 640, 690, atmosphere=atmosphere)
+layer = pyrad.Layer(10, 300, 1013.25, 640, 690)
 
 co2 = layer.addMolecule(2, ppm=400, isotopeDepth=1)
 h2o = layer.addMolecule('h2o', percentage=.4)

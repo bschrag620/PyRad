@@ -15,6 +15,7 @@ p0 = 1013.25
 t0 = 296
 avo =  6.022140857E23
 
+
 def progressAlert():
     pass
 
@@ -25,12 +26,25 @@ def getCrossSection(obj):
     return obj.crossSection
 
 
-def resetData(obj):
+def resetCrossSection(obj):
     obj.crossSection = np.copy(obj.yAxis)
     obj.progressCrossSection = False
     for child in obj:
         if not isinstance(child, Line):
+            resetCrossSection(child)
+
+
+def resetData(obj):
+    # clears the existing line data from parent object down to isotope, and then reloads the data using getData
+    # use this if layer ranges get changed. Will also clear the cross section data of the obj.
+    for child in obj:
+        if isinstance(child, Isotope):
+            while len(child) > 0:
+                child.pop()
+                child.getData()
+        else:
             resetData(child)
+    resetCrossSection(obj)
 
 
 def getAbsCoef(obj):
@@ -123,12 +137,6 @@ def convertTemperature(value, units):
         return value + 273
     elif units[0].upper() == 'F':
         return (value - 32) * 5 / 9 + 273
-
-COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc']
-#def convertConcentration(value, units):
-
-#    if units == 'ppm':
-
 
 
 class Line:
@@ -328,6 +336,9 @@ class Molecule(list):
     def __str__(self):
         return '%s: %s' % (self.name, self.concText)
 
+    def __bool__(self):
+        return True
+
     def returnCopy(self):
         valueUnit = self.concText.split()
         tempDict = {valueUnit[1]: float(valueUnit[0])}
@@ -338,18 +349,22 @@ class Molecule(list):
     def setPercentage(self, percentage):
         self.concentration = percentage / 100
         self.concText = '%s %%' % percentage
+        resetCrossSection(self)
 
     def setPPM(self, ppm):
         self.concentration = ppm * 10**-6
         self.concText = '%s ppm' % ppm
+        resetCrossSection(self)
 
     def setPPB(self, ppb):
         self.concentration = ppb * 10**-8
         self.concText = '%s ppb' % ppb
+        resetCrossSection(self)
 
     def setConcentrationPercentage(self, percentage):
         self.setPPM(10000 * percentage)
         self.concText = '%s concentration' % percentage
+        resetCrossSection(self)
 
     def getData(self):
         for isotope in self:
@@ -453,9 +468,21 @@ class Layer(list):
     def transmissivity(self):
         return np.exp(-self.absCoef * self.depth)
 
-    def resetData(self):
-        for molecule in self:
-            molecule.getData()
+    def changeRange(self, rangeMin, rangeMax):
+        self.rangeMin = rangeMin
+        self.rangeMax = rangeMax
+        resetData(self)
+
+    def changeTemperature(self, temperature):
+        self.T = temperature
+        resetCrossSection(self)
+
+    def changePressure(self, pressure):
+        self.P = pressure
+        resetCrossSection(self)
+
+    def changeDepth(self, depth):
+        self.depth = depth
 
     def addMolecule(self, name, isotopeDepth=1, **abundance):
         molecule = Molecule(name, self, isotopeDepth, **abundance)
@@ -499,7 +526,7 @@ class Atmosphere(list):
         return newLayer
 
     def nextLayerName(self):
-        return 'Layer %s' % len(self)
+        return 'Layer %s' % (len(self) + 1)
 
     def returnLayerNames(self):
         tempList = []
@@ -535,7 +562,7 @@ def isBetween(test, minValue, maxValue):
     return False
 
 
-def plot(obj, propertyToPlot, fill=True, individualColors=True):
+def plot(obj, propertyToPlot, fill=False, individualColors=False):
     plt.figure(figsize=(10, 6), dpi=80)
     plt.subplot(111, facecolor='xkcd:dark grey')
     plt.xlabel('wavenumber cm-1')
@@ -545,7 +572,7 @@ def plot(obj, propertyToPlot, fill=True, individualColors=True):
     plt.grid('grey', linewidth=.5, linestyle=':')
     plt.title('%s\nP: %smBars; T: %sK; depth: %scm' % (str(obj), obj.P, obj.T, obj.depth))
     yAxis, fillAxis = returnPlot(obj, propertyToPlot)
-    fig, = plt.plot(obj.xAxis, yAxis, linewidth=.5, color='w', alpha=.8, label=obj.name)
+    fig, = plt.plot(obj.xAxis, yAxis, linewidth=.5, color='xkcd:green yellow', label=obj.name)
     plt.fill_between(obj.xAxis, fillAxis, yAxis, color='w', alpha=.3 * fill)
     handles = [fig]
     if type(yAxis) is bool:
@@ -556,7 +583,7 @@ def plot(obj, propertyToPlot, fill=True, individualColors=True):
             print('More than 6 elements, only processing first 6...')
         for subPlot, color in zip(obj, COLOR_LIST):
             yAxis, fillAxis = returnPlot(subPlot, propertyToPlot)
-            fig, = plt.plot(subPlot.xAxis, yAxis, linewidth=.5, color=color, alpha=.8, label='%s' % subPlot.name)
+            fig, = plt.plot(subPlot.xAxis, yAxis, linewidth=.5, color=color, label='%s' % subPlot.name)
             handles.append(fig)
             plt.fill_between(subPlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
     legend = plt.legend(handles=handles, frameon=False)
