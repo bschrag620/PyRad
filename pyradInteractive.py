@@ -58,10 +58,13 @@ class Entry:
         self.previousMenu = previousMenu
 
 
-def createPlot(layerPlotType):
-    layer = layerPlotType[0]
-    plotType = layerPlotType[1]
-    pyrad.plot(layer, plotType)
+def createPlot(params):
+    plotList = params[0]
+    plotType = params[1]
+    plotTitle = params[2]
+    print(plotType)
+    print(plotTitle)
+    pyrad.plot(plotType, plotTitle, plotList)
     return
 
 
@@ -252,11 +255,13 @@ def menuChooseLayerToEdit(empty=None):
     return
 
 
-def menuChoosePlotType(layer):
+def menuChoosePlotType(paramList):
+    obj = paramList[0]
+    title = paramList[1]
     plotTypes = ["transmissivity", "absorption coefficient", "cross section", "absorbance"]
     entryList = []
-    for ptype in plotTypes:
-        entryList.append(Entry(ptype, nextFunction=createPlot, functionParams=[layer, ptype]))
+    for plotType in plotTypes:
+        entryList.append(Entry(plotType, nextFunction=createPlot, functionParams=[obj, plotType, title]))
     choosePlotTypeMenu = Menu('Choose plot type', entryList)
     choosePlotTypeMenu.displayMenu()
     return
@@ -265,11 +270,25 @@ def menuChoosePlotType(layer):
 def menuChooseLayerToPlot(empty=None):
     entryList = []
     for layer in genericAtmosphere:
-        nextEntry = Entry(layer.name, nextFunction=menuChoosePlotType, functionParams=layer)
+        nextEntry = Entry(layer.name, nextFunction=menuChoosePlotType, functionParams=([[layer], layer.title]))
+        entryList.append(nextEntry)
+        nextEntry = Entry('%s and components' % layer.name, nextFunction=createObjAndComponents, functionParams=layer)
         entryList.append(nextEntry)
     plotLayerMenu = Menu('Plot layer', entryList)
     plotLayerMenu.displayMenu()
     return
+
+
+def createObjAndComponents(obj):
+    plotList = [obj]
+    print(obj.name)
+    for item in obj:
+        print(item.name)
+        plotList.append(item)
+    print(len(plotList))
+    print(plotList[0].name)
+    pause = input("waiting..")
+    menuChoosePlotType([plotList, obj.title])
 
 
 def menuEditComposition(layer):

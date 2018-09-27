@@ -475,6 +475,10 @@ class Layer(list):
     def transmissivity(self):
         return np.exp(-self.absCoef * self.depth)
 
+    @property
+    def title(self):
+        return '%s\nP: %smBars; T: %sK; depth: %scm' % (str(self), self.P, self.T, self.depth)
+
     def changeRange(self, rangeMin, rangeMax):
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
@@ -573,7 +577,7 @@ def isBetween(test, minValue, maxValue):
     return False
 
 
-def plot(obj, propertyToPlot, fill=False, individualColors=False):
+def plot(propertyToPlot, title, plotList, fill=False):
     plt.figure(figsize=(10, 6), dpi=80)
     plt.subplot(111, facecolor='xkcd:dark grey')
     plt.xlabel('wavenumber cm-1')
@@ -581,22 +585,13 @@ def plot(obj, propertyToPlot, fill=False, individualColors=False):
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel(propertyToPlot)
     plt.grid('grey', linewidth=.5, linestyle=':')
-    plt.title('%s\nP: %smBars; T: %sK; depth: %scm' % (str(obj), obj.P, obj.T, obj.depth))
-    yAxis, fillAxis = returnPlot(obj, propertyToPlot)
-    fig, = plt.plot(obj.xAxis, yAxis, linewidth=.5, color='xkcd:green yellow', label=obj.name)
-    plt.fill_between(obj.xAxis, fillAxis, yAxis, color='w', alpha=.3 * fill)
-    handles = [fig]
-    if type(yAxis) is bool:
-        print('Invalid plot type. Choose "transmissivity", "absorption coefficient", "cross section", or "absorbance".')
-        return False
-    if isinstance(obj, list) and individualColors:
-        if len(obj) > 6:
-            print('More than 6 elements, only processing first 6...')
-        for subPlot, color in zip(obj, COLOR_LIST):
-            yAxis, fillAxis = returnPlot(subPlot, propertyToPlot)
-            fig, = plt.plot(subPlot.xAxis, yAxis, linewidth=.5, color=color, label='%s' % subPlot.name)
-            handles.append(fig)
-            plt.fill_between(subPlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
+    plt.title('%s' % title)
+    handles = []
+    for singlePlot, color in zip(plotList, COLOR_LIST):
+        yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
+        fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=.75, color=color, label='%s' % singlePlot.name)
+        handles.append(fig)
+        plt.fill_between(singlePlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')
@@ -657,7 +652,8 @@ HITRAN_GLOBAL_ISO = {1: {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 129},
                      48: {1: 123},
                      49: {1: 124, 2: 125}}
 
-COLOR_LIST = ['xkcd:bright orange',
+COLOR_LIST = ['xkcd:white',
+              'xkcd:bright orange',
               'xkcd:seafoam green',
               'xkcd:bright blue',
               'xkcd:salmon',
