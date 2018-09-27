@@ -62,8 +62,6 @@ def createPlot(params):
     plotList = params[0]
     plotType = params[1]
     plotTitle = params[2]
-    print(plotType)
-    print(plotTitle)
     pyrad.plot(plotType, plotTitle, plotList)
     return
 
@@ -281,13 +279,8 @@ def menuChooseLayerToPlot(empty=None):
 
 def createObjAndComponents(obj):
     plotList = [obj]
-    print(obj.name)
     for item in obj:
-        print(item.name)
         plotList.append(item)
-    print(len(plotList))
-    print(plotList[0].name)
-    pause = input("waiting..")
     menuChoosePlotType([plotList, obj.title])
 
 
