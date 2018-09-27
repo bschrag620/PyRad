@@ -378,7 +378,7 @@ TEXT_COLORS = {'boldMagenta': '\x1b[1;31;48m',
                'regularCyan': '\x1b[0;36;48m',
                'colorEnd': '\x1b[0m'}
 
-VERSION = '1.5'
+VERSION = '1.7'
 titleLine = "%s***********************              PyRad              ***********************%s" \
             % (TEXT_COLORS['underlineCyan'], TEXT_COLORS['colorEnd'])
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)
