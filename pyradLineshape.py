@@ -3,8 +3,10 @@ import pyradUtilities as utils
 
 
 #cachedVoigt = utils.getCurves('voigt', utils.BASE_RESOLUTION)
-cachedLorentz = utils.getCurves('lorentz', utils.BASE_RESOLUTION)
-cachedGaussian = utils.getCurves('gaussian', utils.BASE_RESOLUTION)
+#cachedLorentz = utils.getCurves('lorentz', utils.BASE_RESOLUTION)
+#cachedGaussian = utils.getCurves('gaussian', utils.BASE_RESOLUTION)
+cachedLorentz = {}
+cachedGaussian = {}
 newLorentz = {}
 newGaussian = {}
 print('\n', end='\r')
@@ -34,7 +36,7 @@ def gaussianLineShape(halfWidth, xValue):
         if len(cachedCurve) >= length:
             return cachedCurve[:length]
     """Returns the right half of a gaussian curve, used for temp broadening in low pressure scenarios"""
-    lineShape = np.sqrt(np.log(2) / np.pi) / halfWidth * np.exp(-(xValue / halfWidth) ** 2 * np.log(2))
+    lineShape = np.exp(-xValue**2 / halfWidth**2) / halfWidth / np.sqrt(pi)
     cachedGaussian[halfWidth] = lineShape
     newGaussian[halfWidth] = lineShape
     return lineShape
@@ -47,7 +49,7 @@ def lorentzLineShape(halfWidth, xValue):
         if len(cachedCurve) >= length:
             return cachedCurve[:length]
     """Returns the right half of a lorentzian curve."""
-    lineShape = halfWidth / (pi * (xValue**2 + halfWidth**2))
+    lineShape = halfWidth / pi / (xValue**2 + halfWidth**2)
     cachedLorentz[halfWidth] = lineShape
     newLorentz[halfWidth] = lineShape
     return lineShape
@@ -78,11 +80,14 @@ def broadenLineList(p, wavenumber, pressureShift):
     new = wavenumber + pressureShift * p / p0
     return new
 
+
 # according to spectralcalc, this function is necessary for calculating lineshapes close to wavenumber 0.
 # the issue arises because to the left side of the center wavenumber the other line functions approach 0,
 # and cause the line shape to become skewed. However, I'm only calculating the right side of the curve.
 # I believe this should mean my curves stay in tact as the absorption bands approach 0. So for now,
 # this function won't be used.
+
+
 def vvLineShape(halfwidth, centerWavenumber, xValues):
     xValues += centerWavenumber
     vvRightCurve = halfwidth * xValues / pi / centerWavenumber * \

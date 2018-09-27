@@ -18,6 +18,34 @@ debuggerFile.write(bytes('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"), 'utf-8'))
 debuggerFile.close()
 
 
+def magentaText(text):
+    return '%s%s%s' % (TEXT_COLORS['regularMagenta'], text, TEXT_COLORS['colorEnd'])
+
+
+def cyanText(text):
+    return '%s%s%s' % (TEXT_COLORS['regularCyan'], text, TEXT_COLORS['colorEnd'])
+
+
+def limeText(text):
+    return '%s%s%s' % (TEXT_COLORS['regularLime'], text, TEXT_COLORS['colorEnd'])
+
+
+def underlineCyan(text):
+    return '%s%s%s' % (TEXT_COLORS['underlineCyan'], text, TEXT_COLORS['colorEnd'])
+
+
+def underlineMagenta(text):
+    return '%s%s%s' % (TEXT_COLORS['underlineMagenta'], text, TEXT_COLORS['colorEnd'])
+
+
+def underlineLime(text):
+    return '%s%s%s' % (TEXT_COLORS['underlineLime'], text, TEXT_COLORS['colorEnd'])
+
+
+def underlineWhite(text):
+    return '%s%s%s' % (TEXT_COLORS['underlineWhite'], text, TEXT_COLORS['colorEnd'])
+
+
 def logToFile(text):
     debugFile = open(debuggerFilePath, 'a')
     debugFile.write('%s\n' % text)
@@ -347,6 +375,7 @@ TEXT_COLORS = {'boldMagenta': '\x1b[1;31;48m',
                'underlineCyan': '\x1b[4;36;48m',
                'regularMagenta': '\x1b[0;31;48m',
                'regularLime': '\x1b[0;32;48m',
+               'regularCyan': '\x1b[0;36;48m',
                'colorEnd': '\x1b[0m'}
 
 VERSION = '1.5'

@@ -4,6 +4,7 @@ import pyradLineshape as ls
 import pyradIntensity
 import numpy as np
 import matplotlib.pyplot as plt
+import pyradInteractive
 
 c = 299792458.0
 k = 1.38064852E-23
@@ -15,6 +16,7 @@ p0 = 1013.25
 t0 = 296
 avo =  6.022140857E23
 
+
 def progressAlert():
     pass
 
@@ -25,12 +27,25 @@ def getCrossSection(obj):
     return obj.crossSection
 
 
-def resetData(obj):
+def resetCrossSection(obj):
     obj.crossSection = np.copy(obj.yAxis)
     obj.progressCrossSection = False
     for child in obj:
         if not isinstance(child, Line):
+            resetCrossSection(child)
+
+
+def resetData(obj):
+    # clears the existing line data from parent object down to isotope, and then reloads the data using getData
+    # use this if layer ranges get changed. Will also clear the cross section data of the obj.
+    for child in obj:
+        if isinstance(child, Isotope):
+            while len(child) > 0:
+                child.pop()
+            child.getData()
+        else:
             resetData(child)
+    resetCrossSection(obj)
 
 
 def getAbsCoef(obj):
@@ -123,12 +138,6 @@ def convertTemperature(value, units):
         return value + 273
     elif units[0].upper() == 'F':
         return (value - 32) * 5 / 9 + 273
-
-COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc']
-#def convertConcentration(value, units):
-
-#    if units == 'ppm':
-
 
 
 class Line:
@@ -299,6 +308,7 @@ class Molecule(list):
         self.crossSection = np.copy(self.yAxis)
         self.isotopeDepth = isotopeDepth
         self.concText = ''
+        self.concentration = 0
         try:
             int(shortNameOrMolNum)
             self.ID = int(shortNameOrMolNum)
@@ -320,13 +330,15 @@ class Molecule(list):
             elif key == 'percentage' or key == 'perc' or key == '%':
                 self.setPercentage(abundance[key])
             elif key == 'concentration':
-                self.concentration = abundance[key]
-
+                self.setConcentration(abundance[key])
             else:
                 print('Invalid concentration type. Use ppm, ppb, percentage, or concentration.')
 
     def __str__(self):
         return '%s: %s' % (self.name, self.concText)
+
+    def __bool__(self):
+        return True
 
     def returnCopy(self):
         valueUnit = self.concText.split()
@@ -338,18 +350,28 @@ class Molecule(list):
     def setPercentage(self, percentage):
         self.concentration = percentage / 100
         self.concText = '%s %%' % percentage
+        resetCrossSection(self)
 
     def setPPM(self, ppm):
         self.concentration = ppm * 10**-6
         self.concText = '%s ppm' % ppm
+        resetCrossSection(self)
 
     def setPPB(self, ppb):
         self.concentration = ppb * 10**-8
         self.concText = '%s ppb' % ppb
+        resetCrossSection(self)
 
-    def setConcentrationPercentage(self, percentage):
-        self.setPPM(10000 * percentage)
-        self.concText = '%s concentration' % percentage
+    def setConcentration(self, concentration):
+        self.setPPM(concentration * 1E6)
+        resetCrossSection(self)
+
+    def changeRange(self):
+        self.yAxis = np.copy(self.layer.yAxis)
+        self.xAxis = np.copy(self.layer.xAxis)
+        for isotope in self:
+            isotope.yAxis = np.copy(self.layer.yAxis)
+            isotope.xAxis = np.copy(self.layer.xAxis)
 
     def getData(self):
         for isotope in self:
@@ -411,13 +433,10 @@ class Layer(list):
         self.depth = depth
         self.distanceFromCenter = self.P / 1013.25 * 5
         self.dynamicResolution = dynamicResolution
-        print(atmosphere.name)
         if not dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
             self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
-        if not atmosphere:
-            print(' no atmosphere provided')
         if not atmosphere:
             if not Layer.hasAtmosphere:
                 self.atmosphere = Atmosphere('generic')
@@ -427,7 +446,6 @@ class Layer(list):
         else:
             self.atmosphere = atmosphere
             self.hasAtmosphere = atmosphere
-        print('layer initiated with atm : %s' % self.atmosphere.name)
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
         self.crossSection = np.copy(self.yAxis)
@@ -457,9 +475,29 @@ class Layer(list):
     def transmissivity(self):
         return np.exp(-self.absCoef * self.depth)
 
-    def resetData(self):
+    @property
+    def title(self):
+        return '%s\nP: %smBars; T: %sK; depth: %scm' % (str(self), self.P, self.T, self.depth)
+
+    def changeRange(self, rangeMin, rangeMax):
+        self.rangeMin = rangeMin
+        self.rangeMax = rangeMax
+        self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
+        self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         for molecule in self:
-            molecule.getData()
+            molecule.changeRange()
+        resetData(self)
+
+    def changeTemperature(self, temperature):
+        self.T = temperature
+        resetCrossSection(self)
+
+    def changePressure(self, pressure):
+        self.P = pressure
+        resetCrossSection(self)
+
+    def changeDepth(self, depth):
+        self.depth = depth
 
     def addMolecule(self, name, isotopeDepth=1, **abundance):
         molecule = Molecule(name, self, isotopeDepth, **abundance)
@@ -495,7 +533,7 @@ class Atmosphere(list):
     def __bool__(self):
         return True
 
-    def addLayer(self, depth, T, P, rangeMin, rangeMax, name=None, dynamicResolution=False):
+    def addLayer(self, depth, T, P, rangeMin, rangeMax, name=None, dynamicResolution=True):
         if not name:
             name = self.nextLayerName()
         newLayer = Layer(depth, T, P, rangeMin, rangeMax, atmosphere=self, name=name, dynamicResolution=dynamicResolution)
@@ -503,7 +541,7 @@ class Atmosphere(list):
         return newLayer
 
     def nextLayerName(self):
-        return 'Layer %s' % len(self)
+        return 'Layer %s' % (len(self) + 1)
 
     def returnLayerNames(self):
         tempList = []
@@ -539,7 +577,7 @@ def isBetween(test, minValue, maxValue):
     return False
 
 
-def plot(obj, propertyToPlot, fill=True, individualColors=True):
+def plot(propertyToPlot, title, plotList, fill=False):
     plt.figure(figsize=(10, 6), dpi=80)
     plt.subplot(111, facecolor='xkcd:dark grey')
     plt.xlabel('wavenumber cm-1')
@@ -547,22 +585,13 @@ def plot(obj, propertyToPlot, fill=True, individualColors=True):
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel(propertyToPlot)
     plt.grid('grey', linewidth=.5, linestyle=':')
-    plt.title('%s\nP: %smBars; T: %sK; depth: %scm' % (str(obj), obj.P, obj.T, obj.depth))
-    yAxis, fillAxis = returnPlot(obj, propertyToPlot)
-    fig, = plt.plot(obj.xAxis, yAxis, linewidth=.5, color='w', alpha=.8, label=obj.name)
-    plt.fill_between(obj.xAxis, fillAxis, yAxis, color='w', alpha=.3 * fill)
-    handles = [fig]
-    if type(yAxis) is bool:
-        print('Invalid plot type. Choose "transmissivity", "absorption coefficient", "cross section", or "absorbance".')
-        return False
-    if isinstance(obj, list) and individualColors:
-        if len(obj) > 6:
-            print('More than 6 elements, only processing first 6...')
-        for subPlot, color in zip(obj, COLOR_LIST):
-            yAxis, fillAxis = returnPlot(subPlot, propertyToPlot)
-            fig, = plt.plot(subPlot.xAxis, yAxis, linewidth=.5, color=color, alpha=.8, label='%s' % subPlot.name)
-            handles.append(fig)
-            plt.fill_between(subPlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
+    plt.title('%s' % title)
+    handles = []
+    for singlePlot, color in zip(plotList, COLOR_LIST):
+        yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
+        fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=.75, color=color, label='%s' % singlePlot.name)
+        handles.append(fig)
+        plt.fill_between(singlePlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')
@@ -623,7 +652,8 @@ HITRAN_GLOBAL_ISO = {1: {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 129},
                      48: {1: 123},
                      49: {1: 124, 2: 125}}
 
-COLOR_LIST = ['xkcd:bright orange',
+COLOR_LIST = ['xkcd:white',
+              'xkcd:bright orange',
               'xkcd:seafoam green',
               'xkcd:bright blue',
               'xkcd:salmon',
@@ -644,3 +674,6 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'c2h4': 38, 'ch3oh': 39, 'ch3br': 40, 'ch3cn': 41,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
                'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
+
+if __name__ == 'main':
+    pyradInteractive.menuMain()
