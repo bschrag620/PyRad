@@ -4,6 +4,7 @@ import pyradLineshape as ls
 import pyradIntensity
 import numpy as np
 import matplotlib.pyplot as plt
+import pyradInteractive
 
 
 c = 299792458.0
@@ -14,7 +15,7 @@ pi = 3.141592653589793
 t0 = 296
 p0 = 1013.25
 t0 = 296
-avo =  6.022140857E23
+avo = 6.022140857E23
 
 
 def progressAlert():
@@ -424,7 +425,7 @@ class Molecule(list):
 class Layer(list):
     hasAtmosphere = False
 
-    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name='', dynamicResolution=False):
+    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name='', dynamicResolution=True):
         super(Layer, self).__init__(self)
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
@@ -684,8 +685,7 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
                'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
 
-import pyradInteractive
+
 
 if __name__ == 'main':
-
     pyradInteractive.menuMain()
