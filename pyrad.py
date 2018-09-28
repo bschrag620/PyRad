@@ -4,7 +4,7 @@ import pyradLineshape as ls
 import pyradIntensity
 import numpy as np
 import matplotlib.pyplot as plt
-import pyradInteractive
+
 
 c = 299792458.0
 k = 1.38064852E-23
@@ -208,11 +208,11 @@ class Isotope(list):
 
     @property
     def rangeMin(self):
-        return self.layer.rangeMin
+        return self.layer.effectiveRangeMin
 
     @property
     def rangeMax(self):
-        return self.layer.rangeMax
+        return self.layer.effectiveRangeMax
 
     @property
     def resolution(self):
@@ -432,6 +432,8 @@ class Layer(list):
         self.P = P
         self.depth = depth
         self.distanceFromCenter = self.P / 1013.25 * 5
+        self.effectiveRangeMin = max(self.rangeMin - self.distanceFromCenter, 0)
+        self.effectiveRangeMax = self.rangeMax + self.distanceFromCenter
         self.dynamicResolution = dynamicResolution
         if not dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
@@ -482,6 +484,8 @@ class Layer(list):
     def changeRange(self, rangeMin, rangeMax):
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
+        self.effectiveRangeMax = self.rangeMax + self.distanceFromCenter
+        self.effectiveRangeMin = max(self.rangeMin - self.distanceFromCenter, 0)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
         self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
         for molecule in self:
@@ -493,8 +497,13 @@ class Layer(list):
         resetCrossSection(self)
 
     def changePressure(self, pressure):
+        oldPressure = self.P
         self.P = pressure
-        resetCrossSection(self)
+        self.distanceFromCenter = self.P / 1013.25 * 5
+        if oldPressure < self.P:
+            resetData(self)
+        else:
+            resetCrossSection(self)
 
     def changeDepth(self, depth):
         self.depth = depth
@@ -675,5 +684,8 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
                'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
 
+import pyradInteractive
+
 if __name__ == 'main':
+
     pyradInteractive.menuMain()
