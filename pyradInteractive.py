@@ -139,7 +139,7 @@ def editLayerPressure(layer):
     print('Current %s for %s is : %s\n'
           % (util.limeText('pressure'), util.limeText(layer.name), util.cyanText('%smbar' % layer.P)))
     pressure = inputLayerPressure()
-    layer.changeTemperature(pressure)
+    layer.changePressure(pressure)
     menuEditLayerParam(layer)
 
 

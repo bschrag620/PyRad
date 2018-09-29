@@ -142,7 +142,11 @@ def convertTemperature(value, units):
 
 
 def interpolateArray(hiResXAxis, loResXAxis, loResYValues):
+    print('hiResX: %s' % len(hiResXAxis))
+    print('loResX: %s' % len(loResXAxis))
+    print('loResY: %s' % len(loResYValues))
     hiResY = np.interp(hiResXAxis, loResXAxis, loResYValues)
+    print('hiResY: %s' % len(hiResY))
     return hiResY
 
 
@@ -191,8 +195,8 @@ class Isotope(list):
         self.molecule = molecule
         self.layer = self.molecule.layer
         self.q = {}
-        self.xAxis = np.copy(self.molecule.xAxis)
-        self.yAxis = np.copy(self.molecule.yAxis)
+        #self.xAxis = np.copy(self.molecule.xAxis)
+        #self.yAxis = np.copy(self.molecule.yAxis)
         self.crossSection = np.copy(self.layer.crossSection)
         self.progressCrossSection = False
 
@@ -244,9 +248,17 @@ class Isotope(list):
     def absorbance(self):
         return np.log(1 / self.transmissivity)
 
+    @property
+    def yAxis(self):
+        return np.copy(self.layer.yAxis)
+
+    @property
+    def xAxis(self):
+        return np.copy(self.layer.xAxis)
+
     def getData(self):
         print('Getting data for %s, isotope %s' % (self.molecule.name, self.globalIsoNumber))
-        lineDict = utils.gatherData(self.globalIsoNumber, self.rangeMin, self.rangeMax)
+        lineDict = utils.gatherData(self.globalIsoNumber, self.layer.effectiveRangeMin, self.layer.effectiveRangeMax)
         self.q = utils.getQData(self.globalIsoNumber)
         for line in lineDict:
             self.append(Line(line, lineDict[line]['intensity'], lineDict[line]['einsteinA'],
@@ -309,8 +321,8 @@ class Molecule(list):
     def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
         super(Molecule, self).__init__(self)
         self.layer = layer
-        self.yAxis = np.copy(layer.yAxis)
-        self.xAxis = layer.xAxis
+        #self.yAxis = np.copy(layer.yAxis)
+        #self.xAxis = layer.xAxis
         self.crossSection = np.copy(layer.crossSection)
         print('molecule cross section length is: %s' % len(self.crossSection))
         self.isotopeDepth = isotopeDepth
@@ -373,12 +385,12 @@ class Molecule(list):
         self.setPPM(concentration * 1E6)
         resetCrossSection(self)
 
-    def changeRange(self):
-        self.yAxis = np.copy(self.layer.yAxis)
-        self.xAxis = np.copy(self.layer.xAxis)
-        for isotope in self:
-            isotope.yAxis = np.copy(self.layer.yAxis)
-            isotope.xAxis = np.copy(self.layer.xAxis)
+    #def changeRange(self):
+        #self.yAxis = np.copy(self.layer.yAxis)
+        #self.xAxis = np.copy(self.layer.xAxis)
+        #for isotope in self:
+        #    isotope.yAxis = np.copy(self.layer.yAxis)
+        #    isotope.xAxis = np.copy(self.layer.xAxis)
 
     def getData(self):
         for isotope in self:
@@ -387,6 +399,7 @@ class Molecule(list):
     def createCrossSection(self):
         tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
         for isotope in self:
+            print('tempAxis len: %s' % len(tempAxis))
             tempAxis += getCrossSection(isotope)
         self.progressCrossSection = True
         self.crossSection = tempAxis
@@ -402,6 +415,14 @@ class Molecule(list):
     @property
     def P(self):
         return self.layer.P
+
+    @property
+    def yAxis(self):
+        return np.copy(self.layer.yAxis)
+
+    @property
+    def xAxis(self):
+        return np.copy(self.layer.xAxis)
 
     @property
     def T(self):
@@ -445,7 +466,7 @@ class Layer(list):
         if not dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
-            self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
+            self.resolution = max(10**int(np.log10((self.P / 1013.25))) * .01, utils.BASE_RESOLUTION)
         if not atmosphere:
             if not Layer.hasAtmosphere:
                 self.atmosphere = Atmosphere('generic')
@@ -455,8 +476,8 @@ class Layer(list):
         else:
             self.atmosphere = atmosphere
             self.hasAtmosphere = atmosphere
-        self.xAxis = np.arange(rangeMin, rangeMax, utils.BASE_RESOLUTION)
-        self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
+        #self.xAxis = np.arange(rangeMin, rangeMax, utils.BASE_RESOLUTION)
+        #self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
         self.crossSection = np.zeros(int((rangeMax - rangeMin) / utils.BASE_RESOLUTION))
         print('layer cross section length is: %s' % len(self.crossSection))
         self.progressCrossSection = False
@@ -473,6 +494,14 @@ class Layer(list):
             tempAxis += getCrossSection(molecule)
         self.progressCrossSection = True
         self.crossSection = tempAxis
+
+    @property
+    def yAxis(self):
+        return np.zeros(int((self.rangeMax - self.rangeMin) / self.resolution))
+
+    @property
+    def xAxis(self):
+        return np.arange(self.rangeMin, self.rangeMax, utils.BASE_RESOLUTION)
 
     @property
     def absCoef(self):
@@ -494,10 +523,10 @@ class Layer(list):
         self.rangeMax = rangeMax
         self.effectiveRangeMax = self.rangeMax + self.distanceFromCenter
         self.effectiveRangeMin = max(self.rangeMin - self.distanceFromCenter, 0)
-        self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
-        self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
-        for molecule in self:
-            molecule.changeRange()
+        #self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
+        #self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
+        #for molecule in self:
+        #    molecule.changeRange()
         resetData(self)
 
     def changeTemperature(self, temperature):
@@ -508,10 +537,11 @@ class Layer(list):
         oldPressure = self.P
         self.P = pressure
         self.distanceFromCenter = self.P / 1013.25 * 5
-        if oldPressure < self.P:
-            resetData(self)
+        if not self.dynamicResolution:
+            self.resolution = utils.BASE_RESOLUTION
         else:
-            resetCrossSection(self)
+            self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
+        resetData(self)
 
     def changeDepth(self, depth):
         self.depth = depth
