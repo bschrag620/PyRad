@@ -29,7 +29,7 @@ def getCrossSection(obj):
 
 
 def resetCrossSection(obj):
-    obj.crossSection = np.copy(obj.yAxis)
+    obj.crossSection = np.zeros(int((obj.rangeMax - obj.rangeMin) / utils.BASE_RESOLUTION))
     obj.progressCrossSection = False
     for child in obj:
         if not isinstance(child, Line):
@@ -141,6 +141,11 @@ def convertTemperature(value, units):
         return (value - 32) * 5 / 9 + 273
 
 
+def interpolateArray(hiResXAxis, loResXAxis, loResYValues):
+    hiResY = np.interp(hiResXAxis, loResXAxis, loResYValues)
+    return hiResY
+
+
 class Line:
     def __init__(self, wavenumber, intensity, einsteinA, airHalfWidth,
                  selfHalfWidth, lowerEnergy, tempExponent, pressureShift, parent):
@@ -188,7 +193,7 @@ class Isotope(list):
         self.q = {}
         self.xAxis = np.copy(self.molecule.xAxis)
         self.yAxis = np.copy(self.molecule.yAxis)
-        self.crossSection = np.copy(self.yAxis)
+        self.crossSection = np.copy(self.layer.crossSection)
         self.progressCrossSection = False
 
     @property
@@ -209,11 +214,11 @@ class Isotope(list):
 
     @property
     def rangeMin(self):
-        return self.layer.effectiveRangeMin
+        return self.layer.rangeMin
 
     @property
     def rangeMax(self):
-        return self.layer.effectiveRangeMax
+        return self.layer.rangeMax
 
     @property
     def resolution(self):
@@ -255,7 +260,7 @@ class Isotope(list):
         progress = 0
         i = 1
         alertInterval = int(len(self) / 20)
-        crossSection = np.zeros(int((layer.rangeMax - layer.rangeMin) / layer.resolution))
+        crossSection = np.copy(self.yAxis)
         trackGauss = 0
         trackLorentz = 0
         trackVoigt = 0
@@ -282,14 +287,14 @@ class Isotope(list):
             arrayLength = len(crossSection) - 1
             if isBetween(arrayIndex, 0, arrayLength):
                 crossSection[arrayIndex] = crossSection[arrayIndex] + rightCurve[0] * intensity
-            for c in range(1, len(rightCurve) - 1):
-                rightIndex = arrayIndex + c
-                leftIndex = arrayIndex - c
+            for dx in range(1, len(rightCurve) - 1):
+                rightIndex = arrayIndex + dx
+                leftIndex = arrayIndex - dx
                 if isBetween(rightIndex, 0, arrayLength):
-                    crossSection[rightIndex] += rightCurve[c] * intensity
+                    crossSection[rightIndex] += rightCurve[dx] * intensity
                 if isBetween(leftIndex, 0, arrayLength):
-                    crossSection[leftIndex] += rightCurve[c] * intensity
-        self.crossSection = crossSection
+                    crossSection[leftIndex] += rightCurve[dx] * intensity
+        self.crossSection = interpolateArray(self.xAxis, np.arange(self.rangeMin ,self.rangeMax, self.resolution), crossSection)
         print('\ngaussian only: %s\t lorentz only: %s\t voigt: %s\n' % (trackGauss, trackLorentz, trackVoigt), end='\r')
         self.progressCrossSection = True
 
@@ -306,7 +311,8 @@ class Molecule(list):
         self.layer = layer
         self.yAxis = np.copy(layer.yAxis)
         self.xAxis = layer.xAxis
-        self.crossSection = np.copy(self.yAxis)
+        self.crossSection = np.copy(layer.crossSection)
+        print('molecule cross section length is: %s' % len(self.crossSection))
         self.isotopeDepth = isotopeDepth
         self.concText = ''
         self.concentration = 0
@@ -379,7 +385,7 @@ class Molecule(list):
             isotope.getData()
 
     def createCrossSection(self):
-        tempAxis = np.copy(self.yAxis)
+        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
         for isotope in self:
             tempAxis += getCrossSection(isotope)
         self.progressCrossSection = True
@@ -449,9 +455,10 @@ class Layer(list):
         else:
             self.atmosphere = atmosphere
             self.hasAtmosphere = atmosphere
-        self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
+        self.xAxis = np.arange(rangeMin, rangeMax, utils.BASE_RESOLUTION)
         self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
-        self.crossSection = np.copy(self.yAxis)
+        self.crossSection = np.zeros(int((rangeMax - rangeMin) / utils.BASE_RESOLUTION))
+        print('layer cross section length is: %s' % len(self.crossSection))
         self.progressCrossSection = False
         if not name:
             name = 'layer %s' % self.atmosphere.nextLayerName()
@@ -461,7 +468,7 @@ class Layer(list):
         return '%s; %s' % (self.name, '; '.join(str(m) for m in self))
 
     def createCrossSection(self):
-        tempAxis = np.copy(self.yAxis)
+        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
         for molecule in self:
             tempAxis += getCrossSection(molecule)
         self.progressCrossSection = True
@@ -469,7 +476,7 @@ class Layer(list):
 
     @property
     def absCoef(self):
-        tempAxis = np.copy(self.yAxis)
+        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
         for molecule in self:
             tempAxis += getAbsCoef(molecule)
         return tempAxis
