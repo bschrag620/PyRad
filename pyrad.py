@@ -306,7 +306,11 @@ class Isotope(list):
                     crossSection[rightIndex] += rightCurve[dx] * intensity
                 if isBetween(leftIndex, 0, arrayLength):
                     crossSection[leftIndex] += rightCurve[dx] * intensity
-        self.crossSection = interpolateArray(self.xAxis, np.arange(self.rangeMin ,self.rangeMax, self.resolution), crossSection)
+        self.crossSection = interpolateArray(self.xAxis,
+                                             np.linspace(self.rangeMin, self.rangeMax,
+                                                         (self.rangeMax - self.rangeMin) / self.resolution,
+                                                         endpoint=True),
+                                             crossSection)
         print('\ngaussian only: %s\t lorentz only: %s\t voigt: %s\n' % (trackGauss, trackLorentz, trackVoigt), end='\r')
         self.progressCrossSection = True
 
@@ -501,7 +505,8 @@ class Layer(list):
 
     @property
     def xAxis(self):
-        return np.arange(self.rangeMin, self.rangeMax, utils.BASE_RESOLUTION)
+        return np.linspace(self.rangeMin, self.rangeMax, (self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION,
+                           endpoint=True)
 
     @property
     def absCoef(self):
