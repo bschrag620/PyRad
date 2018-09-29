@@ -55,10 +55,10 @@ def getAbsCoef(obj):
     return obj.absCoef
 
 
-def getTransmissivity(obj):
+def getTransmittance(obj):
     if not obj.progressCrossSection:
         obj.createCrossSection()
-    return obj.transmissivity
+    return obj.transmittance
 
 
 def getAbsorbance(obj):
@@ -237,16 +237,16 @@ class Isotope(list):
         return self.crossSection * self.molecule.concentration * self.layer.P / 1E4 / k / self.layer.T
 
     @property
-    def transmissivity(self):
+    def transmittance(self):
         return np.exp(-self.absCoef * self.layer.depth)
 
     @property
     def emissivity(self):
-        return 1 - self.transmissivity
+        return 1 - self.transmittance
 
     @property
     def absorbance(self):
-        return np.log(1 / self.transmissivity)
+        return np.log(1 / self.transmittance)
 
     @property
     def yAxis(self):
@@ -413,7 +413,7 @@ class Molecule(list):
         return self.crossSection * self.concentration * self.layer.P / 1E4 / k / self.layer.T
 
     @property
-    def transmissivity(self):
+    def transmittance(self):
         return np.exp(-self.absCoef * self.layer.depth)
 
     @property
@@ -516,7 +516,7 @@ class Layer(list):
         return tempAxis
 
     @property
-    def transmissivity(self):
+    def transmittance(self):
         return np.exp(-self.absCoef * self.depth)
 
     @property
@@ -609,8 +609,8 @@ class Atmosphere(list):
 
 
 def returnPlot(obj, propertyToPlot):
-    if propertyToPlot == "transmissivity":
-        yAxis = getTransmissivity(obj), 1
+    if propertyToPlot == "transmittance":
+        yAxis = getTransmittance(obj), 1
     elif propertyToPlot == 'absorption coefficient':
         yAxis = getAbsCoef(obj), 0
     elif propertyToPlot == 'cross section':
