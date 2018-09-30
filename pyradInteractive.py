@@ -122,7 +122,7 @@ def menuEditLayerParam(layer):
 def editLayerDepth(layer):
     print('Current %s for %s is : %s\n'
           % (util.limeText('depth'), util.limeText(layer.name), util.cyanText('%scm' % layer.depth)))
-    depth = inputLayerDepth()
+    depth = inputLayerDepth(default=layer.depth)
     layer.changeDepth(depth)
     menuEditLayerParam(layer)
 
@@ -130,7 +130,7 @@ def editLayerDepth(layer):
 def editLayerTemperature(layer):
     print('Current %s for %s is : %s\n'
           % (util.limeText('temperature'), util.limeText(layer.name), util.cyanText('%sK' % layer.T)))
-    temperature = inputLayerTemperature()
+    temperature = inputLayerTemperature(default=layer.T)
     layer.changeTemperature(temperature)
     menuEditLayerParam(layer)
 
@@ -138,7 +138,7 @@ def editLayerTemperature(layer):
 def editLayerPressure(layer):
     print('Current %s for %s is : %s\n'
           % (util.limeText('pressure'), util.limeText(layer.name), util.cyanText('%smbar' % layer.P)))
-    pressure = inputLayerPressure()
+    pressure = inputLayerPressure(default=layer.P)
     layer.changePressure(pressure)
     menuEditLayerParam(layer)
 
@@ -147,88 +147,118 @@ def editLayerRange(layer):
     print('Current %s for %s is %s\n'
           % (util.limeText('range'), util.limeText(layer.name),
              util.cyanText('%s-%scm-1' % (layer.rangeMin, layer.rangeMax))))
-    rangeMin, rangeMax = inputLayerRange()
+    rangeMin, rangeMax = inputLayerRange(defaultMin=layer.rangeMin, defaultMax=layer.rangeMax)
     layer.changeRange(rangeMin, rangeMax)
     menuEditLayerParam(layer)
 
 
-def inputLayerDepth():
+def editComposition(molecule):
+    print('Current concentration for %s is %s\n' % (util.limeText(molecule.name), util.limeText(molecule.concText)))
+    return inputMoleculeComposition(molecule, default=molecule.concText)
+
+
+def inputLayerDepth(default=None):
+    if not default:
+        default = 10
     text = 'Enter the thickness of the layer.\t\t\t'
     getDepth = '%s\n' \
                'If no units are specified, %s will be assumed.\n' \
-               'Other valid units are %s :  ' % (util.underlineCyan(text),
-                                                 util.limeText('cm'),
-                                                 util.limeText('m, in, ft.'))
-    depth, depthUnits = receiveInput(getDepth, validDepth)
+               'Other valid units are %s . If no value given, default will be %s:  ' % \
+        (util.underlineCyan(text),
+         util.limeText('cm'),
+         util.limeText('m, in, ft.'),
+         util.limeText('%scm' % default))
+    depth, depthUnits = receiveInput(getDepth, validDepth, default=default)
     return pyrad.convertLength(depth, depthUnits)
 
 
-def inputLayerTemperature():
+def inputLayerTemperature(default=None):
+    if not default:
+        default = 300
     text = 'Enter the temperature of the layer.\t\t\t'
     getTemperature = '%s\n' \
                      'If no units are specified, %s will be assumed.\n' \
-                     'Other valid units are %s :  ' % (util.underlineCyan(text),
-                                                       util.limeText('K'),
-                                                       util.limeText('C or F'))
-    temperature, temperatureUnits = receiveInput(getTemperature, validTemperature)
+                     'Other valid units are %s . If no value given, default will be %s:  ' % \
+                    (util.underlineCyan(text),
+                     util.limeText('K'),
+                     util.limeText('C or F'),
+                     util.limeText('%sK' % default))
+    temperature, temperatureUnits = receiveInput(getTemperature, validTemperature, default=default)
     return pyrad.convertTemperature(temperature, temperatureUnits)
 
 
-def inputLayerPressure():
+def inputLayerPressure(default=None):
+    if not default:
+        default = 1013.25
     text = 'Enter the pressure of the layer.\t\t\t'
-    getPressure= '%s\n' \
-                 'If no units are specified, %s will be assumed.\n' \
-                 'Other valid units are %s :  ' % (util.underlineCyan(text),
-                                                   util.limeText('mBar'),
-                                                   util.limeText('pa, bar, and atm.'))
-    pressure, units = receiveInput(getPressure, validPressure)
+    getPressure = '%s\n' \
+                  'If no units are specified, %s will be assumed.\n' \
+                  'Other valid units are %s . If no value given, default will be %s:  ' % \
+                  (util.underlineCyan(text),
+                   util.limeText('mBar'),
+                   util.limeText('pa, bar, and atm.'),
+                   util.limeText('%smbar' % default))
+    pressure, units = receiveInput(getPressure, validPressure, default=default)
     return pyrad.convertPressure(pressure, units)
 
 
-def inputLayerRange():
+def inputLayerRange(defaultMin=None, defaultMax=None):
+    if not defaultMin:
+        defaultMin = 600
+    if not defaultMax:
+        defaultMax = 700
     rangeMin = -1
     rangeMax = -1
     text = 'Enter the minimum range of the layer.\t\t\t'
     getRangeMin = '%s\n' \
                   'If no units are specified, %s will be assumed.\n' \
-                  'Other valid units are %s :  ' % (util.underlineCyan(text),
-                                                    util.limeText('cm-1'),
-                                                    util.limeText('um'))
+                  'Other valid units are %s . If no value given, default will be %s:  ' % \
+                  (util.underlineCyan(text),
+                   util.limeText('cm-1'),
+                   util.limeText('um'),
+                   util.limeText('%scm' % defaultMin))
     while rangeMin < 0:
-        rangeMin, rangeMinUnits = receiveInput(getRangeMin, validRange)
+        rangeMin, rangeMinUnits = receiveInput(getRangeMin, validRange, default=defaultMin)
         if rangeMin < 0:
             print('Range min must be %s than zero' % util.magentaText('greater'))
     text = 'Enter the maximum range of the layer.\t\t\t'
     getRangeMax = '%s\n' \
                   'If no units are specified, %s will be assumed.\n' \
-                  'Other valid units are %s :  ' % (util.underlineCyan(text),
-                                                    util.limeText('cm-1'),
-                                                    util.limeText('um'))
+                  'Other valid units are %s . If no value given, default will be %s:  ' % \
+                  (util.underlineCyan(text),
+                   util.limeText('cm-1'),
+                   util.limeText('um'),
+                   util.limeText('%scm' % defaultMax))
     while rangeMax <= rangeMin:
-        rangeMax, rangeMaxUnits = receiveInput(getRangeMax, validRange)
+        rangeMax, rangeMaxUnits = receiveInput(getRangeMax, validRange, default=defaultMax)
         if rangeMax <= rangeMin:
             print('Range min must be %s than range min of %s' % (util.magentaText('greater'), util.cyanText(rangeMin)))
     return pyrad.convertRange(rangeMin, rangeMinUnits), pyrad.convertRange(rangeMax, rangeMaxUnits)
 
 
-def inputMoleculeName():
+def inputMoleculeName(default=None):
+    if not default:
+        default = 'co2'
     text = 'Enter the short molecule name.\t\t\t'
     moleculeName = receiveInput('%s\n'
-                                'For a full list of options, type %s : '
+                                'For a full list of options, type %s . If no value given, %s will be used: '
                                 % (util.underlineCyan(text),
-                                   util.magentaText('help')), validMoleculeName)
+                                   util.magentaText('help'),
+                                   util.limeText(default)), validMoleculeName, default=default)
     return moleculeName
 
 
-def inputMoleculeComposition(obj=None):
+def inputMoleculeComposition(obj=None, default=None):
+    if not default:
+        default = '400ppm'
     text = 'Enter the molecule composition.\t\t\t'
     composition, units = receiveInput('%s\n'
                                       'If no units entered, composition will be assumed %s.\n'
-                                      'Other valid units are %s : '
+                                      'Other valid units are %s . If no value given, %s will be used: '
                                       % (util.underlineCyan(text),
                                          util.limeText('parts per 1'),
-                                         util.limeText('ppm, ppb, or percentage')), validComposition)
-
+                                         util.limeText('ppm, ppb, or percentage'),
+                                         util.limeText(default)), validComposition, default=default)
     if obj:
         if units == 'ppm':
             obj.setPPM(composition)
@@ -256,7 +286,7 @@ def menuChooseLayerToEdit(empty=None):
 def menuChoosePlotType(paramList):
     obj = paramList[0]
     title = paramList[1]
-    plotTypes = ["transmissivity", "absorption coefficient", "cross section", "absorbance"]
+    plotTypes = ["transmittance", "absorption coefficient", "cross section", "absorbance"]
     entryList = []
     for plotType in plotTypes:
         entryList.append(Entry(plotType, nextFunction=createPlot, functionParams=[obj, plotType, title]))
@@ -328,10 +358,12 @@ def duplicateObj(obj):
     return
 
 
-def receiveInput(inputText, validInputFunction):
+def receiveInput(inputText, validInputFunction, default=None):
     validInput = False
     while not validInput:
         userInput = input(inputText)
+        if userInput == '':
+            return validInputFunction(str(default))
         validInput = validInputFunction(userInput)
     return validInputFunction(userInput)
 

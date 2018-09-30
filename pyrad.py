@@ -5,7 +5,7 @@ import pyradIntensity
 import pyradPlanck
 import numpy as np
 import matplotlib.pyplot as plt
-# import pyradInteractive
+import pyradInteractive
 
 
 c = 299792458.0
