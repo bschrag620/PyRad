@@ -2,6 +2,7 @@ import os
 import pyradUtilities as utils
 import pyradLineshape as ls
 import pyradIntensity
+import pyradPlanck
 import numpy as np
 import matplotlib.pyplot as plt
 # import pyradInteractive
@@ -320,6 +321,9 @@ class Isotope(list):
             lines.append(line)
         return lines
 
+    def planck(self, temperature):
+        return self.layer.planck(temperature)
+
 
 class Molecule(list):
     def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
@@ -397,6 +401,9 @@ class Molecule(list):
             tempAxis += getCrossSection(isotope)
         self.progressCrossSection = True
         self.crossSection = tempAxis
+
+    def planck(self, temperature):
+        return self.layer.planck(temperature)
 
     @property
     def absCoef(self):
@@ -564,6 +571,9 @@ class Layer(list):
             moleculeList.append(m)
         return moleculeList
 
+    def planck(self, temperature):
+        return pyradPlanck.planckWavenumber(self.xAxis, temperature)
+
 
 class Atmosphere(list):
     def __init__(self, name):
@@ -643,20 +653,30 @@ def plot(propertyToPlot, title, plotList, fill=False):
     plt.show()
 
 
-def plotSpectrum(propertyToPlot, title, plotList, fill=False):
+def plotSpectrum(layer, spectrumList=None, planckTemperatureList=None, fill=False):
     plt.figure(figsize=(10, 6), dpi=80)
     plt.subplot(111, facecolor='xkcd:dark grey')
     plt.xlabel('wavenumber cm-1')
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
-    plt.title('%s' % title)
+    plt.title('%s' % layer.title)
     handles = []
-    for singlePlot, color in zip(plotList, COLOR_LIST):
-        yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
-        fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=.75, color=color, label='%s' % singlePlot.name)
+    blue = 1
+    red = 1
+    green = 1
+    for temperature in planckTemperatureList:
+        yAxis = pyradPlanck.planckWavenumber(layer.xAxis, temperature)
+        fig, = plt.plot(layer.xAxis, yAxis, linewidth=.75, color=(red, green, blue), linestyle=':', label='%sK' % temperature)
         handles.append(fig)
-        plt.fill_between(singlePlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
+        #blue -= .2
+        red -= .2
+        green -= .1
+    #for singlePlot, color in zip(plotList, COLOR_LIST):
+    #    yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
+    #    fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=.75, color=color, label='%s' % singlePlot.name)
+    #    handles.append(fig)
+    #    plt.fill_between(singlePlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')

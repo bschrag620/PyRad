@@ -1,5 +1,4 @@
 import pyrad
-import time
 
 """
 A brief tutorial:
@@ -32,7 +31,7 @@ also a choice to set fill=False if you prefer to see just the outline.
 Questions or bugs, email brad.schrag@gmail.com
 """
 
-layer1 = pyrad.Layer(1000, 300, 1013.25, 500, 700, name='layer1')
+layer1 = pyrad.Layer(1000, 300, 1013.25, 0, 2000, name='layer1')
 co2 = layer1.addMolecule(2, ppm=400, isotopeDepth=1)
 
 
@@ -42,7 +41,8 @@ co2 = layer1.addMolecule(2, ppm=400, isotopeDepth=1)
 layer3 = pyrad.Layer(1000, 300, 1013.25, 500, 700, name='layer3')
 n2o = layer1.addMolecule('n2o', ppb=350)
 
-pyrad.plot('optical depth', layer3.title, [layer1, co2, n2o])
+#pyrad.plot('optical depth', layer3.title, [layer1, co2, n2o])
+pyrad.plotSpectrum(layer1, planckTemperatureList=[220, 250, 270, 300])
 
 """
 MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,

@@ -1,4 +1,5 @@
 import numpy as np
+np.seterr(divide='ignore', invalid='ignore')
 
 k = 1.38064852E-23
 c = 299792458.0
@@ -8,8 +9,9 @@ t0 = 296
 p0 = 1013.25
 
 
-def planck(a,b):
+def planck(a, b):
     # all plank functions follow the basic form a/(e**b - 1)
+
     return a / (np.exp(b) - 1)
 
 
@@ -29,7 +31,7 @@ def planckWavelength(lam, temp):
 
     a = 2.0E24 * h * c ** 2 / (lam ** 5)
     b = 10 ** 6 * h * c / lam / k / temp
-    intensity = planck(a,b)
+    intensity = planck(a, b)
     return intensity
 
 
