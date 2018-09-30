@@ -4,7 +4,7 @@ import pyradLineshape as ls
 import pyradIntensity
 import numpy as np
 import matplotlib.pyplot as plt
-import pyradInteractive
+# import pyradInteractive
 
 
 c = 299792458.0
@@ -59,6 +59,12 @@ def getTransmittance(obj):
     if not obj.progressCrossSection:
         obj.createCrossSection()
     return obj.transmittance
+
+
+def getOpticalDepth(obj):
+    if not obj.progressCrossSection:
+        obj.createCrossSection()
+    return -np.log(obj.transmittance)
 
 
 def getAbsorbance(obj):
@@ -142,11 +148,7 @@ def convertTemperature(value, units):
 
 
 def interpolateArray(hiResXAxis, loResXAxis, loResYValues):
-    print('hiResX: %s' % len(hiResXAxis))
-    print('loResX: %s' % len(loResXAxis))
-    print('loResY: %s' % len(loResYValues))
     hiResY = np.interp(hiResXAxis, loResXAxis, loResYValues)
-    print('hiResY: %s' % len(hiResY))
     return hiResY
 
 
@@ -195,8 +197,6 @@ class Isotope(list):
         self.molecule = molecule
         self.layer = self.molecule.layer
         self.q = {}
-        #self.xAxis = np.copy(self.molecule.xAxis)
-        #self.yAxis = np.copy(self.molecule.yAxis)
         self.crossSection = np.copy(self.layer.crossSection)
         self.progressCrossSection = False
 
@@ -246,7 +246,7 @@ class Isotope(list):
 
     @property
     def absorbance(self):
-        return np.log(1 / self.transmittance)
+        return np.log10(1 / self.transmittance)
 
     @property
     def yAxis(self):
@@ -325,8 +325,6 @@ class Molecule(list):
     def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
         super(Molecule, self).__init__(self)
         self.layer = layer
-        #self.yAxis = np.copy(layer.yAxis)
-        #self.xAxis = layer.xAxis
         self.crossSection = np.copy(layer.crossSection)
         print('molecule cross section length is: %s' % len(self.crossSection))
         self.isotopeDepth = isotopeDepth
@@ -389,13 +387,6 @@ class Molecule(list):
         self.setPPM(concentration * 1E6)
         resetCrossSection(self)
 
-    #def changeRange(self):
-        #self.yAxis = np.copy(self.layer.yAxis)
-        #self.xAxis = np.copy(self.layer.xAxis)
-        #for isotope in self:
-        #    isotope.yAxis = np.copy(self.layer.yAxis)
-        #    isotope.xAxis = np.copy(self.layer.xAxis)
-
     def getData(self):
         for isotope in self:
             isotope.getData()
@@ -403,7 +394,6 @@ class Molecule(list):
     def createCrossSection(self):
         tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
         for isotope in self:
-            print('tempAxis len: %s' % len(tempAxis))
             tempAxis += getCrossSection(isotope)
         self.progressCrossSection = True
         self.crossSection = tempAxis
@@ -415,6 +405,10 @@ class Molecule(list):
     @property
     def transmittance(self):
         return np.exp(-self.absCoef * self.layer.depth)
+
+    @property
+    def absorbance(self):
+        return np.log10(1 / self.transmittance)
 
     @property
     def P(self):
@@ -480,8 +474,6 @@ class Layer(list):
         else:
             self.atmosphere = atmosphere
             self.hasAtmosphere = atmosphere
-        #self.xAxis = np.arange(rangeMin, rangeMax, utils.BASE_RESOLUTION)
-        #self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
         self.crossSection = np.zeros(int((rangeMax - rangeMin) / utils.BASE_RESOLUTION))
         print('layer cross section length is: %s' % len(self.crossSection))
         self.progressCrossSection = False
@@ -520,6 +512,10 @@ class Layer(list):
         return np.exp(-self.absCoef * self.depth)
 
     @property
+    def absorbance(self):
+        return np.log10(1 / self.transmittance)
+
+    @property
     def title(self):
         return '%s\nP: %smBars; T: %sK; depth: %scm' % (str(self), self.P, self.T, self.depth)
 
@@ -528,10 +524,6 @@ class Layer(list):
         self.rangeMax = rangeMax
         self.effectiveRangeMax = self.rangeMax + self.distanceFromCenter
         self.effectiveRangeMin = max(self.rangeMin - self.distanceFromCenter, 0)
-        #self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
-        #self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
-        #for molecule in self:
-        #    molecule.changeRange()
         resetData(self)
 
     def changeTemperature(self, temperature):
@@ -539,13 +531,12 @@ class Layer(list):
         resetCrossSection(self)
 
     def changePressure(self, pressure):
-        oldPressure = self.P
         self.P = pressure
         self.distanceFromCenter = self.P / 1013.25 * 5
         if not self.dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
-            self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
+            self.resolution = max(10**int(np.log10((self.P / 1013.25))) * .01, utils.BASE_RESOLUTION)
         resetData(self)
 
     def changeDepth(self, depth):
@@ -617,6 +608,8 @@ def returnPlot(obj, propertyToPlot):
         yAxis = getCrossSection(obj), 0
     elif propertyToPlot == 'absorbance':
         yAxis = getAbsorbance(obj), 0
+    elif propertyToPlot == 'optical depth':
+        yAxis = getOpticalDepth(obj), 0
     else:
         return False
     return yAxis
@@ -637,6 +630,26 @@ def plot(propertyToPlot, title, plotList, fill=False):
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel(propertyToPlot)
     plt.grid('grey', linewidth=.5, linestyle=':')
+    plt.title('%s' % title)
+    handles = []
+    for singlePlot, color in zip(plotList, COLOR_LIST):
+        yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
+        fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=.75, color=color, label='%s' % singlePlot.name)
+        handles.append(fig)
+        plt.fill_between(singlePlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
+    legend = plt.legend(handles=handles, frameon=False)
+    text = legend.get_texts()
+    plt.setp(text, color='w')
+    plt.show()
+
+
+def plotSpectrum(propertyToPlot, title, plotList, fill=False):
+    plt.figure(figsize=(10, 6), dpi=80)
+    plt.subplot(111, facecolor='xkcd:dark grey')
+    plt.xlabel('wavenumber cm-1')
+    plt.margins(0.01)
+    plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
+    plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
     plt.title('%s' % title)
     handles = []
     for singlePlot, color in zip(plotList, COLOR_LIST):
