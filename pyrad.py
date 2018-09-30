@@ -526,6 +526,14 @@ class Layer(list):
     def title(self):
         return '%s\nP: %smBars; T: %sK; depth: %scm' % (str(self), self.P, self.T, self.depth)
 
+    @property
+    def emissivity(self):
+        return 1 - self.transmittance
+
+    @property
+    def emittance(self):
+        return self.emissivity
+
     def changeRange(self, rangeMin, rangeMax):
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
@@ -573,6 +581,11 @@ class Layer(list):
 
     def planck(self, temperature):
         return pyradPlanck.planckWavenumber(self.xAxis, temperature)
+
+    def transmission(self, surfaceTemperature):
+        transmitted = self.transmittance * self.planck(surfaceTemperature)
+        emitted = self.emittance * self.planck(self.T)
+        return transmitted + emitted
 
 
 class Atmosphere(list):
@@ -675,6 +688,10 @@ def plotSpectrum(layer, spectrumList=None, planckTemperatureList=None, fill=Fals
             red = 0
         if green < 0:
             green = 0
+    for spectrum, color in zip(spectrumList, COLOR_LIST[1:]):
+        yAxis = spectrum
+        fig, = plt.plot(layer.xAxis, yAxis, linewidth=.75, color=color, label='%s' % layer.name)
+        handles.append(fig)
     #for singlePlot, color in zip(plotList, COLOR_LIST):
     #    yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
     #    fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=.75, color=color, label='%s' % singlePlot.name)

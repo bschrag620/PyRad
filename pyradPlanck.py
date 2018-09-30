@@ -45,6 +45,10 @@ def planckWavenumber(n, temp):
     return intensity
 
 
+def reverseWavenumber(n, intensity):
+    pass
+
+
 
 # Example usage and plot
 ##create arange array of wavenumbers 1-250000, units meters
