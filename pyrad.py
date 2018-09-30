@@ -669,9 +669,12 @@ def plotSpectrum(layer, spectrumList=None, planckTemperatureList=None, fill=Fals
         yAxis = pyradPlanck.planckWavenumber(layer.xAxis, temperature)
         fig, = plt.plot(layer.xAxis, yAxis, linewidth=.75, color=(red, green, blue), linestyle=':', label='%sK' % temperature)
         handles.append(fig)
-        #blue -= .2
         red -= .2
         green -= .1
+        if red < 0:
+            red = 0
+        if green < 0:
+            green = 0
     #for singlePlot, color in zip(plotList, COLOR_LIST):
     #    yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
     #    fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=.75, color=color, label='%s' % singlePlot.name)
