@@ -42,7 +42,7 @@ layer3 = pyrad.Layer(1000, 300, 1013.25, 500, 700, name='layer3')
 #n2o = layer1.addMolecule('n2o', ppb=350)
 
 #pyrad.plot('optical depth', layer3.title, [layer1, co2, n2o])
-pyrad.plotSpectrum(layer1, spectrumList=[layer1.transmission(320)], planckTemperatureList=[280, 320])
+pyrad.plotSpectrum(layer=layer1, spectrumList=[layer1.transmission(320)], planckTemperatureList=[280, 320])
 
 """
 MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,

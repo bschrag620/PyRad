@@ -19,8 +19,9 @@ t0 = 296
 avo = 6.022140857E23
 
 
-def progressAlert():
-    pass
+def integrateSpectrum(spectrum, xAxis):
+    value = np.sum(np.nan_to_num(spectrum)) * utils.BASE_RESOLUTION
+    return value
 
 
 def getCrossSection(obj):
@@ -199,6 +200,7 @@ class Isotope(list):
         self.layer = self.molecule.layer
         self.q = {}
         self.crossSection = np.copy(self.layer.crossSection)
+        self.lineSurvey = np.zeros(int((self.layer.rangeMax - self.layer.rangeMin) / utils.BASE_RESOLUTION))
         self.progressCrossSection = False
 
     @property
@@ -246,6 +248,10 @@ class Isotope(list):
         return 1 - self.transmittance
 
     @property
+    def emittance(self):
+        return self.emissivity
+
+    @property
     def absorbance(self):
         return np.log10(1 / self.transmittance)
 
@@ -266,6 +272,7 @@ class Isotope(list):
                              lineDict[line]['airHalfWidth'], lineDict[line]['selfHalfWidth'],
                              lineDict[line]['lowerEnergy'], lineDict[line]['tempExponent'],
                              lineDict[line]['pressureShift'], self))
+        self.createLineSurvey()
 
     def createCrossSection(self):
         molecule = self.molecule
@@ -315,6 +322,36 @@ class Isotope(list):
         print('\ngaussian only: %s\t lorentz only: %s\t voigt: %s\n' % (trackGauss, trackLorentz, trackVoigt), end='\r')
         self.progressCrossSection = True
 
+    def createLineSurvey(self):
+        print('Creating line survey for %s' % self.name)
+        molecule = self.molecule
+        layer = molecule.layer
+        progress = 0
+        i = 1
+        alertInterval = int(len(self) / 20)
+        lineSurvey = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
+        for line in self:
+            if progress > i * alertInterval:
+                print('Progress for %s <%s%s>' % (molecule.name, '*' * i, '-' * (20 - i)), end='\r', flush=True)
+                i += 1
+            progress += 1
+            hwRatio = line.lorentzHW / line.gaussianHW
+            #if hwRatio < .01:
+            #    x = ls.gaussianLineShape(line.gaussianHW, 0)
+            #elif hwRatio > 100:
+            #    x = ls.lorentzLineShape(line.lorentzHW, 0)
+            #else:
+            #    x = ls.pseudoVoigtShape(line.gaussianHW, line.lorentzHW, 0)
+            #intensity = pyradIntensity.intensityFactor(line.intensity, line.broadenedLine,
+            #                                           layer.T, line.lowerEnergy, self.q[layer.T], self.q296)
+            intensity = line.intensity
+            arrayIndex = int((line.wavenumber - layer.rangeMin) / layer.resolution)
+            arrayLength = len(lineSurvey) - 1
+            if isBetween(arrayIndex, 0, arrayLength):
+                lineSurvey[arrayIndex] = lineSurvey[arrayIndex] + intensity
+        self.lineSurvey = lineSurvey
+        return self.lineSurvey
+
     def linelist(self):
         lines = []
         for line in self:
@@ -324,13 +361,17 @@ class Isotope(list):
     def planck(self, temperature):
         return self.layer.planck(temperature)
 
+    def transmission(self, surfaceSpectrum):
+        transmitted = self.transmittance * surfaceSpectrum
+        emitted = self.emittance * self.planck(self.T)
+        return transmitted + emitted
+
 
 class Molecule(list):
     def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
         super(Molecule, self).__init__(self)
         self.layer = layer
         self.crossSection = np.copy(layer.crossSection)
-        print('molecule cross section length is: %s' % len(self.crossSection))
         self.isotopeDepth = isotopeDepth
         self.concText = ''
         self.concentration = 0
@@ -405,6 +446,11 @@ class Molecule(list):
     def planck(self, temperature):
         return self.layer.planck(temperature)
 
+    def transmission(self, surfaceSpectrum):
+        transmitted = self.transmittance * surfaceSpectrum
+        emitted = self.emittance * self.planck(self.T)
+        return transmitted + emitted
+
     @property
     def absCoef(self):
         return self.crossSection * self.concentration * self.layer.P / 1E4 / k / self.layer.T
@@ -414,8 +460,23 @@ class Molecule(list):
         return np.exp(-self.absCoef * self.layer.depth)
 
     @property
+    def lineSurvey(self):
+        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
+        for isotope in self:
+            tempAxis += isotope.lineSurvey
+        return tempAxis
+
+    @property
     def absorbance(self):
         return np.log10(1 / self.transmittance)
+
+    @property
+    def emissivity(self):
+        return 1 - self.transmittance
+
+    @property
+    def emittance(self):
+        return self.emissivity
 
     @property
     def P(self):
@@ -482,7 +543,6 @@ class Layer(list):
             self.atmosphere = atmosphere
             self.hasAtmosphere = atmosphere
         self.crossSection = np.zeros(int((rangeMax - rangeMin) / utils.BASE_RESOLUTION))
-        print('layer cross section length is: %s' % len(self.crossSection))
         self.progressCrossSection = False
         if not name:
             name = 'layer %s' % self.atmosphere.nextLayerName()
@@ -491,12 +551,22 @@ class Layer(list):
     def __str__(self):
         return '%s; %s' % (self.name, '; '.join(str(m) for m in self))
 
+    def __bool__(self):
+        return True
+
     def createCrossSection(self):
         tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
         for molecule in self:
             tempAxis += getCrossSection(molecule)
         self.progressCrossSection = True
         self.crossSection = tempAxis
+
+    @property
+    def lineSurvey(self):
+        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
+        for molecule in self:
+            tempAxis += molecule.lineSurvey
+        return tempAxis
 
     @property
     def yAxis(self):
@@ -582,8 +652,8 @@ class Layer(list):
     def planck(self, temperature):
         return pyradPlanck.planckWavenumber(self.xAxis, temperature)
 
-    def transmission(self, surfaceTemperature):
-        transmitted = self.transmittance * self.planck(surfaceTemperature)
+    def transmission(self, surfaceSpectrum):
+        transmitted = self.transmittance * surfaceSpectrum
         emitted = self.emittance * self.planck(self.T)
         return transmitted + emitted
 
@@ -633,6 +703,8 @@ def returnPlot(obj, propertyToPlot):
         yAxis = getAbsorbance(obj), 0
     elif propertyToPlot == 'optical depth':
         yAxis = getOpticalDepth(obj), 0
+    elif propertyToPlot == 'line survey':
+        yAxis = obj.lineSurvey, 0
     else:
         return False
     return yAxis
@@ -652,6 +724,8 @@ def plot(propertyToPlot, title, plotList, fill=False):
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel(propertyToPlot)
+    if propertyToPlot == 'line survey':
+        plt.yscale('log')
     plt.grid('grey', linewidth=.5, linestyle=':')
     plt.title('%s' % title)
     handles = []
@@ -666,37 +740,57 @@ def plot(propertyToPlot, title, plotList, fill=False):
     plt.show()
 
 
-def plotSpectrum(layer, spectrumList=None, planckTemperatureList=None, fill=False):
+def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=None, surfaceSpectrum=None,
+                 planckTemperatureList=None, fill=False):
     plt.figure(figsize=(10, 6), dpi=80)
     plt.subplot(111, facecolor='xkcd:dark grey')
     plt.xlabel('wavenumber cm-1')
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
-    plt.title('%s' % layer.title)
+    if layer:
+        rangeMin = layer.rangeMin
+        rangeMax = layer.rangeMax
+        title = layer.title
+    plt.title('%s' % title)
     handles = []
-    blue = 1
+    blue = .3
     red = 1
-    green = 1
+    green = .6
+    dr = -.15
+    db = .15
+    dg = .15
+    if not rangeMax:
+        xAxis = layer.xAxis
+    else:
+        xAxis = np.linspace(rangeMin, rangeMax, (rangeMax - rangeMin) / utils.BASE_RESOLUTION)
     for temperature in planckTemperatureList:
-        yAxis = pyradPlanck.planckWavenumber(layer.xAxis, temperature)
-        fig, = plt.plot(layer.xAxis, yAxis, linewidth=.75, color=(red, green, blue), linestyle=':', label='%sK' % temperature)
+        print(temperature)
+        yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
+        print(yAxis)
+        fig, = plt.plot(xAxis, yAxis, linewidth=.75, color=(red, green, blue),
+                        linestyle=':', label='%sK %sWm-2sr-1' % (temperature, int(integrateSpectrum(yAxis, xAxis))))
         handles.append(fig)
-        red -= .2
-        green -= .1
-        if red < 0:
-            red = 0
-        if green < 0:
-            green = 0
-    for spectrum, color in zip(spectrumList, COLOR_LIST[1:]):
-        yAxis = spectrum
-        fig, = plt.plot(layer.xAxis, yAxis, linewidth=.75, color=color, label='%s' % layer.name)
-        handles.append(fig)
-    #for singlePlot, color in zip(plotList, COLOR_LIST):
-    #    yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
-    #    fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=.75, color=color, label='%s' % singlePlot.name)
-    #    handles.append(fig)
-    #    plt.fill_between(singlePlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
+        if red + dr < 0 or red + dr > 1:
+            dr *= -1
+        if green + dg > 1 or green + dg < 0:
+            dg *= -1
+        if blue + db > 1 or blue + db < 0:
+            db *= -1
+        red += dr
+        green += dg
+        blue += db
+        if red < .3 and green < .3 and blue < .3:
+            green += .5
+            blue += .2
+        if red < .3 and green < .3:
+            green += .4
+        print(red, green, blue)
+    if objList:
+        for obj, color in zip(objList, COLOR_LIST[1:]):
+            yAxis = obj.transmission(surfaceSpectrum)
+            fig, = plt.plot(layer.xAxis, yAxis, linewidth=.75, color=color, label='%s %sWm-2' % (obj.name, int(integrateSpectrum(yAxis))))
+            handles.append(fig)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')

@@ -38,9 +38,8 @@ def planckWavelength(lam, temp):
 def planckWavenumber(n, temp):
     # planck blackbody intensity
     # input is wavenumber in meters, output is wm-2sr-1(cm-1)-1
-
     a = 2E8 * h * c**2 * n**3
-    b = 100 * h * c * n / k / temp
+    b = 100 * h * c * n / k / float(temp)
     intensity = planck(a, b)
     return intensity
 
