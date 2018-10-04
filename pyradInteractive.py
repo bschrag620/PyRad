@@ -1,6 +1,7 @@
 import pyrad
 import pyradUtilities as util
 import re
+import pyradPlanck
 
 existingAtmosphere = False
 validValueAndUnits = re.compile('([-])?(\d+)?([.])?(\d+)?(\S+)?')
@@ -18,7 +19,7 @@ class Menu:
         titleStr = '\t' + self.title
         while len(titleStr) < 60:
             titleStr += ' '
-        print('%s' % util.underlineCyan(titleStr))
+        print('\n%s' % util.underlineCyan(titleStr))
         i = 1
         validEntry = ['x']
         for entry in self.entries:
@@ -59,16 +60,16 @@ class Entry:
 
 
 def createPlot(params):
-    plotList = params[0]
-    plotType = params[1]
-    plotTitle = params[2]
+    plotList = params['plots']
+    plotType = params['plotType']
+    plotTitle = params['title']
     pyrad.plot(plotType, plotTitle, plotList)
     return
 
 
 def createLayer(atmosphere):
     defaultLayerName = atmosphere.nextLayerName()
-    getLayerName = '%s\n' \
+    getLayerName = '\n%s\n' \
                    'If no value given, default will be %s : ' \
                    % (util.underlineCyan('Enter the name of the layer.\t\t'),
                       util.limeText(defaultLayerName))
@@ -122,7 +123,7 @@ def menuEditLayerParam(layer):
 def editLayerDepth(layer):
     print('Current %s for %s is : %s\n'
           % (util.limeText('depth'), util.limeText(layer.name), util.cyanText('%scm' % layer.depth)))
-    depth = inputLayerDepth()
+    depth = inputLayerDepth(default=layer.depth)
     layer.changeDepth(depth)
     menuEditLayerParam(layer)
 
@@ -130,7 +131,7 @@ def editLayerDepth(layer):
 def editLayerTemperature(layer):
     print('Current %s for %s is : %s\n'
           % (util.limeText('temperature'), util.limeText(layer.name), util.cyanText('%sK' % layer.T)))
-    temperature = inputLayerTemperature()
+    temperature = inputLayerTemperature(default=layer.T)
     layer.changeTemperature(temperature)
     menuEditLayerParam(layer)
 
@@ -138,8 +139,8 @@ def editLayerTemperature(layer):
 def editLayerPressure(layer):
     print('Current %s for %s is : %s\n'
           % (util.limeText('pressure'), util.limeText(layer.name), util.cyanText('%smbar' % layer.P)))
-    pressure = inputLayerPressure()
-    layer.changeTemperature(pressure)
+    pressure = inputLayerPressure(default=layer.P)
+    layer.changePressure(pressure)
     menuEditLayerParam(layer)
 
 
@@ -147,88 +148,143 @@ def editLayerRange(layer):
     print('Current %s for %s is %s\n'
           % (util.limeText('range'), util.limeText(layer.name),
              util.cyanText('%s-%scm-1' % (layer.rangeMin, layer.rangeMax))))
-    rangeMin, rangeMax = inputLayerRange()
+    rangeMin, rangeMax = inputLayerRange(defaultMin=layer.rangeMin, defaultMax=layer.rangeMax)
     layer.changeRange(rangeMin, rangeMax)
     menuEditLayerParam(layer)
 
 
-def inputLayerDepth():
+def editComposition(molecule):
+    print('Current concentration for %s is %s\n' % (util.limeText(molecule.name), util.limeText(molecule.concText)))
+    return inputMoleculeComposition(molecule, default=molecule.concText)
+
+
+def inputLayerDepth(default=None):
+    if not default:
+        default = 10
     text = 'Enter the thickness of the layer.\t\t\t'
     getDepth = '%s\n' \
                'If no units are specified, %s will be assumed.\n' \
-               'Other valid units are %s :  ' % (util.underlineCyan(text),
-                                                 util.limeText('cm'),
-                                                 util.limeText('m, in, ft.'))
-    depth, depthUnits = receiveInput(getDepth, validDepth)
-    return pyrad.convertLength(depth, depthUnits)
+               'Other valid units are %s . If no value given, default will be %s:  ' % \
+        (util.underlineCyan(text),
+         util.limeText('cm'),
+         util.limeText('m, in, ft.'),
+         util.limeText('%scm' % default))
+    depth = receiveInput(getDepth, validDepth, default=default)
+    return depth
 
 
-def inputLayerTemperature():
+def inputLayerTemperature(default=None):
+    if not default:
+        default = 300
     text = 'Enter the temperature of the layer.\t\t\t'
     getTemperature = '%s\n' \
                      'If no units are specified, %s will be assumed.\n' \
-                     'Other valid units are %s :  ' % (util.underlineCyan(text),
-                                                       util.limeText('K'),
-                                                       util.limeText('C or F'))
-    temperature, temperatureUnits = receiveInput(getTemperature, validTemperature)
-    return pyrad.convertTemperature(temperature, temperatureUnits)
+                     'Other valid units are %s . If no value given, default will be %s:  ' % \
+                    (util.underlineCyan(text),
+                     util.limeText('K'),
+                     util.limeText('C or F'),
+                     util.limeText('%sK' % default))
+    temperature = receiveInput(getTemperature, validTemperature, default=default)
+    return temperature
 
 
-def inputLayerPressure():
+def inputLayerPressure(default=None):
+    if not default:
+        default = 1013.25
     text = 'Enter the pressure of the layer.\t\t\t'
-    getPressure= '%s\n' \
-                 'If no units are specified, %s will be assumed.\n' \
-                 'Other valid units are %s :  ' % (util.underlineCyan(text),
-                                                   util.limeText('mBar'),
-                                                   util.limeText('pa, bar, and atm.'))
-    pressure, units = receiveInput(getPressure, validPressure)
-    return pyrad.convertPressure(pressure, units)
+    getPressure = '%s\n' \
+                  'If no units are specified, %s will be assumed.\n' \
+                  'Other valid units are %s . If no value given, default will be %s:  ' % \
+                  (util.underlineCyan(text),
+                   util.limeText('mBar'),
+                   util.limeText('pa, bar, and atm.'),
+                   util.limeText('%smbar' % default))
+    pressure = receiveInput(getPressure, validPressure, default=default)
+    return pressure
 
 
-def inputLayerRange():
+def inputLayerRange(defaultMin=None, defaultMax=None):
+    if not defaultMin:
+        defaultMin = 600
+    if not defaultMax:
+        defaultMax = 700
     rangeMin = -1
     rangeMax = -1
     text = 'Enter the minimum range of the layer.\t\t\t'
     getRangeMin = '%s\n' \
                   'If no units are specified, %s will be assumed.\n' \
-                  'Other valid units are %s :  ' % (util.underlineCyan(text),
-                                                    util.limeText('cm-1'),
-                                                    util.limeText('um'))
+                  'Other valid units are %s . If no value given, default will be %s:  ' % \
+                  (util.underlineCyan(text),
+                   util.limeText('cm-1'),
+                   util.limeText('um'),
+                   util.limeText('%scm' % defaultMin))
     while rangeMin < 0:
-        rangeMin, rangeMinUnits = receiveInput(getRangeMin, validRange)
+        rangeMin = receiveInput(getRangeMin, validRange, default=defaultMin)
         if rangeMin < 0:
             print('Range min must be %s than zero' % util.magentaText('greater'))
     text = 'Enter the maximum range of the layer.\t\t\t'
     getRangeMax = '%s\n' \
                   'If no units are specified, %s will be assumed.\n' \
-                  'Other valid units are %s :  ' % (util.underlineCyan(text),
-                                                    util.limeText('cm-1'),
-                                                    util.limeText('um'))
+                  'Other valid units are %s . If no value given, default will be %s:  ' % \
+                  (util.underlineCyan(text),
+                   util.limeText('cm-1'),
+                   util.limeText('um'),
+                   util.limeText('%scm' % defaultMax))
     while rangeMax <= rangeMin:
-        rangeMax, rangeMaxUnits = receiveInput(getRangeMax, validRange)
+        rangeMax = receiveInput(getRangeMax, validRange, default=defaultMax)
         if rangeMax <= rangeMin:
             print('Range min must be %s than range min of %s' % (util.magentaText('greater'), util.cyanText(rangeMin)))
-    return pyrad.convertRange(rangeMin, rangeMinUnits), pyrad.convertRange(rangeMax, rangeMaxUnits)
+    return rangeMin, rangeMax
 
 
-def inputMoleculeName():
+def validNumber(userInput):
+    try:
+        return float(userInput)
+    except ValueError:
+        return False
+
+
+def inputPlanckRange(units):
+    rangeMin = -1
+    rangeMax = -1
+    text = '%s\nUnits are %s. Scientific notation is accepted (1e14):' \
+           % (util.underlineCyan('Enter the minimum range of the planck spectrum.'),util.limeText(units))
+    while rangeMin < 0:
+        rangeMin = receiveInput(text, validNumber)
+        if rangeMin < 0:
+            print('Range min must be %s than zero' % util.magentaText('greater'))
+    text = '%s\nUnits are %s. Scientific notation is accepted (1e14):' \
+           % (util.underlineCyan('Enter the maximum range of the planck spectrum.'), util.limeText(units))
+    while rangeMax <= rangeMin:
+        rangeMax = receiveInput(text, validNumber)
+        if rangeMax <= rangeMin:
+            print('Range min must be %s than range min of %s' % (util.magentaText('greater'), util.cyanText(rangeMin)))
+    return rangeMin, rangeMax
+
+
+def inputMoleculeName(default=None):
+    if not default:
+        default = 'co2'
     text = 'Enter the short molecule name.\t\t\t'
     moleculeName = receiveInput('%s\n'
-                                'For a full list of options, type %s : '
+                                'For a full list of options, type %s . If no value given, %s will be used: '
                                 % (util.underlineCyan(text),
-                                   util.magentaText('help')), validMoleculeName)
+                                   util.magentaText('help'),
+                                   util.limeText(default)), validMoleculeName, default=default)
     return moleculeName
 
 
-def inputMoleculeComposition(obj=None):
+def inputMoleculeComposition(obj=None, default=None):
+    if not default:
+        default = '400ppm'
     text = 'Enter the molecule composition.\t\t\t'
     composition, units = receiveInput('%s\n'
                                       'If no units entered, composition will be assumed %s.\n'
-                                      'Other valid units are %s : '
+                                      'Other valid units are %s . If no value given, %s will be used: '
                                       % (util.underlineCyan(text),
                                          util.limeText('parts per 1'),
-                                         util.limeText('ppm, ppb, or percentage')), validComposition)
-
+                                         util.limeText('ppm, ppb, or percentage'),
+                                         util.limeText(default)), validComposition, default=default)
     if obj:
         if units == 'ppm':
             obj.setPPM(composition)
@@ -243,6 +299,17 @@ def inputMoleculeComposition(obj=None):
         return composition, units
 
 
+def inputPlanckTemps():
+    text = 'Enter the temperature of the planck curves.\t\t\t'
+    tempList = receiveMultiInput('%s\n'
+                            'If no units entered, temperature will be assumed %s.\n'
+                            'Other valid units are %s .Multiple temperatures can be separated with a comma: '
+                            % (util.underlineCyan(text),
+                               util.limeText('K'),
+                               util.limeText('C and F')), validTemperature)
+    return tempList
+
+
 def menuChooseLayerToEdit(empty=None):
     entryList = []
     for layer in genericAtmosphere:
@@ -253,24 +320,79 @@ def menuChooseLayerToEdit(empty=None):
     return
 
 
-def menuChoosePlotType(paramList):
-    obj = paramList[0]
-    title = paramList[1]
-    plotTypes = ["transmissivity", "absorption coefficient", "cross section", "absorbance"]
+def menuChooseTransmission(plotType):
     entryList = []
-    for plotType in plotTypes:
-        entryList.append(Entry(plotType, nextFunction=createPlot, functionParams=[obj, plotType, title]))
+    for layer in genericAtmosphere:
+        params = {'plots': [layer], 'plotType': plotType, 'title': layer.title}
+        nextEntry = Entry(layer.name, nextFunction=createTransmission, functionParams=params)
+        entryList.append(nextEntry)
+        plotList, title = createObjAndComponents(layer)
+        params = {'plots': plotList, 'plotType': plotType, 'title': title}
+        nextEntry = Entry('%s and components' % layer.name, nextFunction=createTransmission, functionParams=params)
+        entryList.append(nextEntry)
+    transmissionMenu = Menu('Choose which layers to plot transmission', entryList)
+    transmissionMenu.displayMenu()
+    return
+
+
+def createPlanckCurves(plotType):
+    plotList = inputPlanckTemps()
+    rangeMin, rangeMax = inputPlanckRange(plotType)
+    pyrad.plotSpectrum(title='Planck spectrums', rangeMin=rangeMin, rangeMax=rangeMax, planckTemperatureList=plotList, planckType=plotType)
+    return
+
+
+def menuPlanckType(empty=None):
+    entryList = []
+    wavenumber = 'wavenumber'
+    hertz = 'Hz'
+    wavelength = 'wavelength'
+    entryList.append(Entry('By %s (cm-1)' % wavenumber, nextFunction=createPlanckCurves, functionParams=wavenumber))
+    entryList.append(Entry('By %s (um)' % wavelength, nextFunction=createPlanckCurves, functionParams=wavelength))
+    entryList.append(Entry('By %s (s-1)' % hertz, nextFunction=createPlanckCurves, functionParams=hertz))
+    planckTypeMenu = Menu('Choose planck type', entryList)
+    planckTypeMenu.displayMenu()
+    return
+
+
+def createTransmission(params):
+    layer = params['plots'][0]
+    text = 'A plot for transmission requires an initial surface temperature.\n'\
+           'Please choose a temperature different from the layer temperature of %sK:' % util.limeText(layer.T)
+    temperature = receiveMultiInput(text, validTemperature)
+    objList = []
+    for item in params['plots']:
+        objList.append(item)
+    temperature.append(layer.T)
+    pyrad.plotSpectrum(layer, objList=objList,
+                       surfaceSpectrum=pyradPlanck.planckWavenumber(layer.xAxis, temperature[0]),
+                       planckTemperatureList=temperature)
+    return
+
+
+def menuChoosePlotType(empty=None):
+    entryList = []
+    entryList.append(Entry('transmittance', nextFunction=menuChooseLayerToPlot, functionParams='transmittance'))
+    entryList.append(Entry('absorption coefficient', nextFunction=menuChooseLayerToPlot, functionParams='absorption coefficient'))
+    entryList.append(Entry('cross section', nextFunction=menuChooseLayerToPlot, functionParams='cross section'))
+    entryList.append(Entry('absorbance', nextFunction=menuChooseLayerToPlot, functionParams='absorbance'))
+    entryList.append(Entry('optical depth', nextFunction=menuChooseLayerToPlot, functionParams='optical depth'))
+    entryList.append(Entry('line survey', nextFunction=menuChooseLayerToPlot, functionParams='line survey'))
+    entryList.append(Entry('transmission', nextFunction=menuChooseTransmission, functionParams='transmission'))
     choosePlotTypeMenu = Menu('Choose plot type', entryList)
     choosePlotTypeMenu.displayMenu()
     return
 
 
-def menuChooseLayerToPlot(empty=None):
+def menuChooseLayerToPlot(plotType):
     entryList = []
     for layer in genericAtmosphere:
-        nextEntry = Entry(layer.name, nextFunction=menuChoosePlotType, functionParams=([[layer], layer.title]))
+        params = {'plots': [layer], 'plotType': plotType, 'title': layer.title}
+        nextEntry = Entry(layer.name, nextFunction=createPlot, functionParams=params)
         entryList.append(nextEntry)
-        nextEntry = Entry('%s and components' % layer.name, nextFunction=createObjAndComponents, functionParams=layer)
+        plotList, title = createObjAndComponents(layer)
+        params = {'plots': plotList, 'plotType': plotType, 'title': title}
+        nextEntry = Entry('%s and components' % layer.name, nextFunction=createPlot, functionParams=params)
         entryList.append(nextEntry)
     plotLayerMenu = Menu('Plot layer', entryList)
     plotLayerMenu.displayMenu()
@@ -281,7 +403,7 @@ def createObjAndComponents(obj):
     plotList = [obj]
     for item in obj:
         plotList.append(item)
-    menuChoosePlotType([plotList, obj.title])
+    return plotList, obj.title
 
 
 def menuEditComposition(layer):
@@ -313,8 +435,9 @@ def menuEditParamsOrComp(layer):
 def menuMain():
     createLayerEntry = Entry("Create new gas cell", nextFunction=createLayer, functionParams=genericAtmosphere)
     editLayerEntry = Entry("Edit/duplicate gas cell", nextFunction=menuChooseLayerToEdit)
-    plotLayerEntry = Entry("Plot gas cell", nextFunction=menuChooseLayerToPlot)
-    mainMenu = Menu('Main menu', [createLayerEntry, editLayerEntry, plotLayerEntry])
+    plotLayerEntry = Entry("Plot gas cell", nextFunction=menuChoosePlotType)
+    planckPlotEntry = (Entry('Plot planck curves', nextFunction=menuPlanckType))
+    mainMenu = Menu('Main menu', [createLayerEntry, editLayerEntry, plotLayerEntry, planckPlotEntry])
     mainMenu.displayMenu()
     return
 
@@ -328,12 +451,28 @@ def duplicateObj(obj):
     return
 
 
-def receiveInput(inputText, validInputFunction):
+def receiveInput(inputText, validInputFunction, default=None):
+    validInput = False
+    while validInput is False:
+        userInput = input('\n%s' % inputText)
+        if userInput == '':
+            return validInputFunction(str(default))
+        validInput = validInputFunction(userInput)
+    return validInput
+
+
+def receiveMultiInput(inputText, validInputFunction, default=None):
     validInput = False
     while not validInput:
         userInput = input(inputText)
-        validInput = validInputFunction(userInput)
-    return validInputFunction(userInput)
+        inputList = userInput.replace(' ', '').split(',')
+        testInput = True
+        for item in inputList:
+            if not validInputFunction(item):
+                print('%s not recognized as valid. Please try again.')
+                testInput = False
+        if testInput:
+            return inputList
 
 
 def validMoleculeName(userInput):
@@ -371,7 +510,7 @@ def validPressure(userInput):
             textNumber += splitInput.group(i)
 
     value = float(textNumber)
-    return value, unit
+    return pyrad.convertPressure(value, unit)
 
 
 def validComposition(userInput):
@@ -423,7 +562,7 @@ def validTemperature(userInput):
         if splitInput.group(i):
             textNumber += splitInput.group(i)
     value = float(textNumber)
-    return value, unit
+    return pyrad.convertTemperature(value, unit)
 
 
 def validRange(userInput):
@@ -448,7 +587,7 @@ def validRange(userInput):
         if splitInput.group(i):
             textNumber += splitInput.group(i)
     value = float(textNumber)
-    return value, unit
+    return pyrad.convertRange(value, unit)
 
 
 def validDepth(userInput):
@@ -473,7 +612,7 @@ def validDepth(userInput):
         if splitInput.group(i):
             textNumber += splitInput.group(i)
     value = float(textNumber)
-    return value, unit
+    return pyrad.convertLength(value, unit)
 
 
 DEPTH_UNITS = ['cm', 'in', 'inches', 'ft', 'feet', 'meter', 'm']

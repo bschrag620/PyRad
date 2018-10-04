@@ -2,9 +2,11 @@ import os
 import pyradUtilities as utils
 import pyradLineshape as ls
 import pyradIntensity
+import pyradPlanck
 import numpy as np
 import matplotlib.pyplot as plt
 import pyradInteractive
+
 
 c = 299792458.0
 k = 1.38064852E-23
@@ -14,11 +16,13 @@ pi = 3.141592653589793
 t0 = 296
 p0 = 1013.25
 t0 = 296
-avo =  6.022140857E23
+avo = 6.022140857E23
 
 
-def progressAlert():
-    pass
+def integrateSpectrum(spectrum, unitAngle=pi, res=utils.BASE_RESOLUTION):
+    value = np.sum(np.nan_to_num(spectrum))
+    value = value * unitAngle * res
+    return value
 
 
 def getCrossSection(obj):
@@ -28,7 +32,7 @@ def getCrossSection(obj):
 
 
 def resetCrossSection(obj):
-    obj.crossSection = np.copy(obj.yAxis)
+    obj.crossSection = np.zeros(int((obj.rangeMax - obj.rangeMin) / utils.BASE_RESOLUTION))
     obj.progressCrossSection = False
     for child in obj:
         if not isinstance(child, Line):
@@ -54,10 +58,16 @@ def getAbsCoef(obj):
     return obj.absCoef
 
 
-def getTransmissivity(obj):
+def getTransmittance(obj):
     if not obj.progressCrossSection:
         obj.createCrossSection()
-    return obj.transmissivity
+    return obj.transmittance
+
+
+def getOpticalDepth(obj):
+    if not obj.progressCrossSection:
+        obj.createCrossSection()
+    return -np.log(obj.transmittance)
 
 
 def getAbsorbance(obj):
@@ -140,6 +150,11 @@ def convertTemperature(value, units):
         return (value - 32) * 5 / 9 + 273
 
 
+def interpolateArray(hiResXAxis, loResXAxis, loResYValues):
+    hiResY = np.interp(hiResXAxis, loResXAxis, loResYValues)
+    return hiResY
+
+
 class Line:
     def __init__(self, wavenumber, intensity, einsteinA, airHalfWidth,
                  selfHalfWidth, lowerEnergy, tempExponent, pressureShift, parent):
@@ -185,9 +200,8 @@ class Isotope(list):
         self.molecule = molecule
         self.layer = self.molecule.layer
         self.q = {}
-        self.xAxis = np.copy(self.molecule.xAxis)
-        self.yAxis = np.copy(self.molecule.yAxis)
-        self.crossSection = np.copy(self.yAxis)
+        self.crossSection = np.copy(self.layer.crossSection)
+        self.lineSurvey = np.zeros(int((self.layer.rangeMax - self.layer.rangeMin) / utils.BASE_RESOLUTION))
         self.progressCrossSection = False
 
     @property
@@ -227,26 +241,39 @@ class Isotope(list):
         return self.crossSection * self.molecule.concentration * self.layer.P / 1E4 / k / self.layer.T
 
     @property
-    def transmissivity(self):
+    def transmittance(self):
         return np.exp(-self.absCoef * self.layer.depth)
 
     @property
     def emissivity(self):
-        return 1 - self.transmissivity
+        return 1 - self.transmittance
+
+    @property
+    def emittance(self):
+        return self.emissivity
 
     @property
     def absorbance(self):
-        return np.log(1 / self.transmissivity)
+        return np.log10(1 / self.transmittance)
+
+    @property
+    def yAxis(self):
+        return np.copy(self.layer.yAxis)
+
+    @property
+    def xAxis(self):
+        return np.copy(self.layer.xAxis)
 
     def getData(self):
         print('Getting data for %s, isotope %s' % (self.molecule.name, self.globalIsoNumber))
-        lineDict = utils.gatherData(self.globalIsoNumber, self.rangeMin, self.rangeMax)
+        lineDict = utils.gatherData(self.globalIsoNumber, self.layer.effectiveRangeMin, self.layer.effectiveRangeMax)
         self.q = utils.getQData(self.globalIsoNumber)
         for line in lineDict:
             self.append(Line(line, lineDict[line]['intensity'], lineDict[line]['einsteinA'],
                              lineDict[line]['airHalfWidth'], lineDict[line]['selfHalfWidth'],
                              lineDict[line]['lowerEnergy'], lineDict[line]['tempExponent'],
                              lineDict[line]['pressureShift'], self))
+        self.createLineSurvey()
 
     def createCrossSection(self):
         molecule = self.molecule
@@ -254,7 +281,7 @@ class Isotope(list):
         progress = 0
         i = 1
         alertInterval = int(len(self) / 20)
-        crossSection = np.zeros(int((layer.rangeMax - layer.rangeMin) / layer.resolution))
+        crossSection = np.copy(self.yAxis)
         trackGauss = 0
         trackLorentz = 0
         trackVoigt = 0
@@ -281,16 +308,41 @@ class Isotope(list):
             arrayLength = len(crossSection) - 1
             if isBetween(arrayIndex, 0, arrayLength):
                 crossSection[arrayIndex] = crossSection[arrayIndex] + rightCurve[0] * intensity
-            for c in range(1, len(rightCurve) - 1):
-                rightIndex = arrayIndex + c
-                leftIndex = arrayIndex - c
+            for dx in range(1, len(rightCurve) - 1):
+                rightIndex = arrayIndex + dx
+                leftIndex = arrayIndex - dx
                 if isBetween(rightIndex, 0, arrayLength):
-                    crossSection[rightIndex] += rightCurve[c] * intensity
+                    crossSection[rightIndex] += rightCurve[dx] * intensity
                 if isBetween(leftIndex, 0, arrayLength):
-                    crossSection[leftIndex] += rightCurve[c] * intensity
-        self.crossSection = crossSection
+                    crossSection[leftIndex] += rightCurve[dx] * intensity
+        self.crossSection = interpolateArray(self.xAxis,
+                                             np.linspace(self.rangeMin, self.rangeMax,
+                                                         (self.rangeMax - self.rangeMin) / self.resolution,
+                                                         endpoint=True),
+                                             crossSection)
         print('\ngaussian only: %s\t lorentz only: %s\t voigt: %s\n' % (trackGauss, trackLorentz, trackVoigt), end='\r')
         self.progressCrossSection = True
+
+    def createLineSurvey(self):
+        print('Creating line survey for %s' % self.name)
+        molecule = self.molecule
+        layer = molecule.layer
+        progress = 0
+        i = 1
+        alertInterval = int(len(self) / 20)
+        lineSurvey = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
+        for line in self:
+            if progress > i * alertInterval:
+                print('Progress for %s <%s%s>' % (molecule.name, '*' * i, '-' * (20 - i)), end='\r', flush=True)
+                i += 1
+            progress += 1
+            intensity = line.intensity
+            arrayIndex = int((line.wavenumber - layer.rangeMin) / layer.resolution)
+            arrayLength = len(lineSurvey) - 1
+            if isBetween(arrayIndex, 0, arrayLength):
+                lineSurvey[arrayIndex] = lineSurvey[arrayIndex] + intensity
+        self.lineSurvey = lineSurvey
+        return self.lineSurvey
 
     def linelist(self):
         lines = []
@@ -298,14 +350,20 @@ class Isotope(list):
             lines.append(line)
         return lines
 
+    def planck(self, temperature):
+        return self.layer.planck(temperature)
+
+    def transmission(self, surfaceSpectrum):
+        transmitted = self.transmittance * surfaceSpectrum
+        emitted = self.emittance * self.planck(self.T)
+        return transmitted + emitted
+
 
 class Molecule(list):
     def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
         super(Molecule, self).__init__(self)
         self.layer = layer
-        self.yAxis = np.copy(layer.yAxis)
-        self.xAxis = layer.xAxis
-        self.crossSection = np.copy(self.yAxis)
+        self.crossSection = np.copy(layer.crossSection)
         self.isotopeDepth = isotopeDepth
         self.concText = ''
         self.concentration = 0
@@ -366,35 +424,63 @@ class Molecule(list):
         self.setPPM(concentration * 1E6)
         resetCrossSection(self)
 
-    def changeRange(self):
-        self.yAxis = np.copy(self.layer.yAxis)
-        self.xAxis = np.copy(self.layer.xAxis)
-        for isotope in self:
-            isotope.yAxis = np.copy(self.layer.yAxis)
-            isotope.xAxis = np.copy(self.layer.xAxis)
-
     def getData(self):
         for isotope in self:
             isotope.getData()
 
     def createCrossSection(self):
-        tempAxis = np.copy(self.yAxis)
+        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
         for isotope in self:
             tempAxis += getCrossSection(isotope)
         self.progressCrossSection = True
         self.crossSection = tempAxis
+
+    def planck(self, temperature):
+        return self.layer.planck(temperature)
+
+    def transmission(self, surfaceSpectrum):
+        transmitted = self.transmittance * surfaceSpectrum
+        emitted = self.emittance * self.planck(self.T)
+        return transmitted + emitted
 
     @property
     def absCoef(self):
         return self.crossSection * self.concentration * self.layer.P / 1E4 / k / self.layer.T
 
     @property
-    def transmissivity(self):
+    def transmittance(self):
         return np.exp(-self.absCoef * self.layer.depth)
+
+    @property
+    def lineSurvey(self):
+        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
+        for isotope in self:
+            tempAxis += isotope.lineSurvey
+        return tempAxis
+
+    @property
+    def absorbance(self):
+        return np.log10(1 / self.transmittance)
+
+    @property
+    def emissivity(self):
+        return 1 - self.transmittance
+
+    @property
+    def emittance(self):
+        return self.emissivity
 
     @property
     def P(self):
         return self.layer.P
+
+    @property
+    def yAxis(self):
+        return np.copy(self.layer.yAxis)
+
+    @property
+    def xAxis(self):
+        return np.copy(self.layer.xAxis)
 
     @property
     def T(self):
@@ -424,7 +510,7 @@ class Molecule(list):
 class Layer(list):
     hasAtmosphere = False
 
-    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name='', dynamicResolution=False):
+    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name='', dynamicResolution=True):
         super(Layer, self).__init__(self)
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
@@ -432,11 +518,13 @@ class Layer(list):
         self.P = P
         self.depth = depth
         self.distanceFromCenter = self.P / 1013.25 * 5
+        self.effectiveRangeMin = max(self.rangeMin - self.distanceFromCenter, 0)
+        self.effectiveRangeMax = self.rangeMax + self.distanceFromCenter
         self.dynamicResolution = dynamicResolution
         if not dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
-            self.resolution = 10**int(np.log10((self.P / 1013.25))) * .01
+            self.resolution = max(10**int(np.log10((self.P / 1013.25))) * .01, utils.BASE_RESOLUTION)
         if not atmosphere:
             if not Layer.hasAtmosphere:
                 self.atmosphere = Atmosphere('generic')
@@ -446,9 +534,7 @@ class Layer(list):
         else:
             self.atmosphere = atmosphere
             self.hasAtmosphere = atmosphere
-        self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
-        self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
-        self.crossSection = np.copy(self.yAxis)
+        self.crossSection = np.zeros(int((rangeMax - rangeMin) / utils.BASE_RESOLUTION))
         self.progressCrossSection = False
         if not name:
             name = 'layer %s' % self.atmosphere.nextLayerName()
@@ -457,35 +543,64 @@ class Layer(list):
     def __str__(self):
         return '%s; %s' % (self.name, '; '.join(str(m) for m in self))
 
+    def __bool__(self):
+        return True
+
     def createCrossSection(self):
-        tempAxis = np.copy(self.yAxis)
+        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
         for molecule in self:
             tempAxis += getCrossSection(molecule)
         self.progressCrossSection = True
         self.crossSection = tempAxis
 
     @property
+    def lineSurvey(self):
+        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
+        for molecule in self:
+            tempAxis += molecule.lineSurvey
+        return tempAxis
+
+    @property
+    def yAxis(self):
+        return np.zeros(int((self.rangeMax - self.rangeMin) / self.resolution))
+
+    @property
+    def xAxis(self):
+        return np.linspace(self.rangeMin, self.rangeMax, (self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION,
+                           endpoint=True)
+
+    @property
     def absCoef(self):
-        tempAxis = np.copy(self.yAxis)
+        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
         for molecule in self:
             tempAxis += getAbsCoef(molecule)
         return tempAxis
 
     @property
-    def transmissivity(self):
+    def transmittance(self):
         return np.exp(-self.absCoef * self.depth)
+
+    @property
+    def absorbance(self):
+        return np.log10(1 / self.transmittance)
 
     @property
     def title(self):
         return '%s\nP: %smBars; T: %sK; depth: %scm' % (str(self), self.P, self.T, self.depth)
 
+    @property
+    def emissivity(self):
+        return 1 - self.transmittance
+
+    @property
+    def emittance(self):
+        return self.emissivity
+
     def changeRange(self, rangeMin, rangeMax):
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
-        self.yAxis = np.zeros(int((rangeMax - rangeMin) / self.resolution))
-        self.xAxis = np.arange(rangeMin, rangeMax, self.resolution)
-        for molecule in self:
-            molecule.changeRange()
+        self.effectiveRangeMax = self.rangeMax + self.distanceFromCenter
+        self.effectiveRangeMin = max(self.rangeMin - self.distanceFromCenter, 0)
         resetData(self)
 
     def changeTemperature(self, temperature):
@@ -494,7 +609,12 @@ class Layer(list):
 
     def changePressure(self, pressure):
         self.P = pressure
-        resetCrossSection(self)
+        self.distanceFromCenter = self.P / 1013.25 * 5
+        if not self.dynamicResolution:
+            self.resolution = utils.BASE_RESOLUTION
+        else:
+            self.resolution = max(10**int(np.log10((self.P / 1013.25))) * .01, utils.BASE_RESOLUTION)
+        resetData(self)
 
     def changeDepth(self, depth):
         self.depth = depth
@@ -520,6 +640,14 @@ class Layer(list):
         for m in self:
             moleculeList.append(m)
         return moleculeList
+
+    def planck(self, temperature):
+        return pyradPlanck.planckWavenumber(self.xAxis, temperature)
+
+    def transmission(self, surfaceSpectrum):
+        transmitted = self.transmittance * surfaceSpectrum
+        emitted = self.emittance * self.planck(self.T)
+        return transmitted + emitted
 
 
 class Atmosphere(list):
@@ -557,14 +685,18 @@ class Atmosphere(list):
 
 
 def returnPlot(obj, propertyToPlot):
-    if propertyToPlot == "transmissivity":
-        yAxis = getTransmissivity(obj), 1
+    if propertyToPlot == "transmittance":
+        yAxis = getTransmittance(obj), 1
     elif propertyToPlot == 'absorption coefficient':
         yAxis = getAbsCoef(obj), 0
     elif propertyToPlot == 'cross section':
         yAxis = getCrossSection(obj), 0
     elif propertyToPlot == 'absorbance':
         yAxis = getAbsorbance(obj), 0
+    elif propertyToPlot == 'optical depth':
+        yAxis = getOpticalDepth(obj), 0
+    elif propertyToPlot == 'line survey':
+        yAxis = obj.lineSurvey, 0
     else:
         return False
     return yAxis
@@ -584,14 +716,91 @@ def plot(propertyToPlot, title, plotList, fill=False):
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel(propertyToPlot)
+    if propertyToPlot == 'line survey':
+        plt.yscale('log')
     plt.grid('grey', linewidth=.5, linestyle=':')
     plt.title('%s' % title)
     handles = []
+    linewidth = 1.2
+    alpha =.7
     for singlePlot, color in zip(plotList, COLOR_LIST):
         yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
-        fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=.75, color=color, label='%s' % singlePlot.name)
+        fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=linewidth, alpha=alpha, color=color, label='%s' % singlePlot.name)
         handles.append(fig)
         plt.fill_between(singlePlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
+        linewidth = .7
+        alpha = .5
+    legend = plt.legend(handles=handles, frameon=False)
+    text = legend.get_texts()
+    plt.setp(text, color='w')
+    plt.show()
+
+
+def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=None, surfaceSpectrum=None,
+                 planckTemperatureList=None, planckType='wavenumber', fill=False):
+    plt.figure(figsize=(10, 6), dpi=80)
+    plt.subplot(111, facecolor='xkcd:dark grey')
+    plt.margins(0.01)
+    plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
+    if layer:
+        rangeMin = layer.rangeMin
+        rangeMax = layer.rangeMax
+        title = layer.title
+    if planckType == 'wavenumber':
+        plt.xlabel('wavenumber cm-1')
+        plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
+        planckFunction = pyradPlanck.planckWavenumber
+        xAxis = np.linspace(rangeMin, rangeMax, (rangeMax - rangeMin) / utils.BASE_RESOLUTION)
+    elif planckType == 'Hz':
+        plt.xlabel('Hertz')
+        plt.ylabel('Radiance Wm-2sr-1Hz-1')
+        planckFunction = pyradPlanck.planckHz
+        xAxis = np.linspace(rangeMin, rangeMax, 1000)
+    elif planckType == 'wavelength':
+        plt.xlabel('wavelength um')
+        plt.ylabel('Radiance Wm-2sr-1um-1')
+        planckFunction = pyradPlanck.planckWavelength
+        xAxis = np.linspace(rangeMin, rangeMax, (rangeMax - rangeMin) / utils.BASE_RESOLUTION)
+    plt.title('%s' % title)
+    handles = []
+    blue = .3
+    red = 1
+    green = .6
+    dr = -.15
+    db = .15
+    dg = .15
+    if not rangeMax:
+        xAxis = layer.xAxis
+    for temperature in planckTemperatureList:
+        yAxis = planckFunction(xAxis, float(temperature))
+        fig, = plt.plot(xAxis, yAxis, linewidth=.75, color=(red, green, blue),
+                        linestyle=':', label='%sK : %sWm-2' % (temperature, int(integrateSpectrum(yAxis, res=(rangeMax - rangeMin) / len(yAxis)))))
+        handles.append(fig)
+        if red + dr < 0 or red + dr > 1:
+            dr *= -1
+        if green + dg > 1 or green + dg < 0:
+            dg *= -1
+        if blue + db > 1 or blue + db < 0:
+            db *= -1
+        red += dr
+        green += dg
+        blue += db
+        if red < .3 and green < .3 and blue < .3:
+            green += .5
+            blue += .2
+        if red < .3 and green < .3:
+            green += .4
+    if objList:
+        alpha = .7
+        linewidth = 1.2
+        surfacePower = integrateSpectrum(surfaceSpectrum, pi)
+        for obj, color in zip(objList, COLOR_LIST):
+            yAxis = obj.transmission(surfaceSpectrum)
+            fig, = plt.plot(layer.xAxis, yAxis, linewidth=linewidth, alpha=alpha, color=color, label='%s : %sWm-2'
+                                                            % (obj.name, round(integrateSpectrum(yAxis, pi), 3)))
+            handles.append(fig)
+            alpha = .5
+            linewidth = 1
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')
@@ -674,6 +883,8 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'c2h4': 38, 'ch3oh': 39, 'ch3br': 40, 'ch3cn': 41,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
                'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
+
+
 
 if __name__ == 'main':
     pyradInteractive.menuMain()
