@@ -357,8 +357,8 @@ def displayAllMolecules():
             newLineIter = 0
             print('\n')
 
-
-BASE_RESOLUTION = .01
+RES_MULTIPLIER = 1
+BASE_RESOLUTION = .01 * RES_MULTIPLIER
 
 MOLECULE_PARAM_COMMENTS = "#\t#\t#\n" \
                           "# Molecule params for pyrad\n" \
@@ -395,11 +395,10 @@ else:
                     'colorEnd': '\x1b[0m'}
 
 VERSION = '1.7'
-titleLine = "%s***********************              PyRad              ***********************%s" \
-            % (TEXT_COLORS['underlineCyan'], TEXT_COLORS['colorEnd'])
+titleLine = "%s***********************              PyRad v%s              ***********************%s" \
+            % (TEXT_COLORS['underlineCyan'], VERSION, TEXT_COLORS['colorEnd'])
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)
-GREETING = "%s\n" \
-           "%sv%s%s\n" \
+GREETING = "%s\n\n" \
            "An open-source, amateur attempt at a radiative transfer model for an atmosphere\n\n" \
            "\tAll line lists are downloaded from HITRAN\n" \
            "\tAll information for calculation of lineshapes comes \n" \
@@ -408,7 +407,7 @@ GREETING = "%s\n" \
            "\tThanks to those you have made the information available \n" \
            "\tand so easily accessible.\n\n" \
            "*******************************************************************************" \
-           % (titleLine, ' ' * messageGap, VERSION, ' ' * (len(titleLine) - messageGap))
+           % (titleLine)
 
 
 MOLECULE_PARAM_COMMENTS = "#\t#\t#\n" \

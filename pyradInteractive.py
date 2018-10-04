@@ -237,6 +237,31 @@ def inputLayerRange(defaultMin=None, defaultMax=None):
     return rangeMin, rangeMax
 
 
+def validNumber(userInput):
+    try:
+        return float(userInput)
+    except ValueError:
+        return False
+
+
+def inputPlanckRange(units):
+    rangeMin = -1
+    rangeMax = -1
+    text = '%s\nUnits are %s. Scientific notation is accepted (1e14):' \
+           % (util.underlineCyan('Enter the minimum range of the planck spectrum.'),util.limeText(units))
+    while rangeMin < 0:
+        rangeMin = receiveInput(text, validNumber)
+        if rangeMin < 0:
+            print('Range min must be %s than zero' % util.magentaText('greater'))
+    text = '%s\nUnits are %s. Scientific notation is accepted (1e14):' \
+           % (util.underlineCyan('Enter the maximum range of the planck spectrum.'), util.limeText(units))
+    while rangeMax <= rangeMin:
+        rangeMax = receiveInput(text, validNumber)
+        if rangeMax <= rangeMin:
+            print('Range min must be %s than range min of %s' % (util.magentaText('greater'), util.cyanText(rangeMin)))
+    return rangeMin, rangeMax
+
+
 def inputMoleculeName(default=None):
     if not default:
         default = 'co2'
@@ -312,8 +337,21 @@ def menuChooseTransmission(plotType):
 
 def createPlanckCurves(plotType):
     plotList = inputPlanckTemps()
-    rangeMin, rangeMax = inputLayerRange()
-    pyrad.plotSpectrum(title='Planck spectrums', rangeMin=rangeMin, rangeMax=rangeMax, planckTemperatureList=plotList)
+    rangeMin, rangeMax = inputPlanckRange(plotType)
+    pyrad.plotSpectrum(title='Planck spectrums', rangeMin=rangeMin, rangeMax=rangeMax, planckTemperatureList=plotList, planckType=plotType)
+    return
+
+
+def menuPlanckType(empty=None):
+    entryList = []
+    wavenumber = 'wavenumber'
+    hertz = 'Hz'
+    wavelength = 'wavelength'
+    entryList.append(Entry('By %s (cm-1)' % wavenumber, nextFunction=createPlanckCurves, functionParams=wavenumber))
+    entryList.append(Entry('By %s (um)' % wavelength, nextFunction=createPlanckCurves, functionParams=wavelength))
+    entryList.append(Entry('By %s (s-1)' % hertz, nextFunction=createPlanckCurves, functionParams=hertz))
+    planckTypeMenu = Menu('Choose planck type', entryList)
+    planckTypeMenu.displayMenu()
     return
 
 
@@ -341,7 +379,6 @@ def menuChoosePlotType(empty=None):
     entryList.append(Entry('optical depth', nextFunction=menuChooseLayerToPlot, functionParams='optical depth'))
     entryList.append(Entry('line survey', nextFunction=menuChooseLayerToPlot, functionParams='line survey'))
     entryList.append(Entry('transmission', nextFunction=menuChooseTransmission, functionParams='transmission'))
-    entryList.append(Entry('planck curves', nextFunction=createPlanckCurves, functionParams='planck'))
     choosePlotTypeMenu = Menu('Choose plot type', entryList)
     choosePlotTypeMenu.displayMenu()
     return
@@ -399,7 +436,8 @@ def menuMain():
     createLayerEntry = Entry("Create new gas cell", nextFunction=createLayer, functionParams=genericAtmosphere)
     editLayerEntry = Entry("Edit/duplicate gas cell", nextFunction=menuChooseLayerToEdit)
     plotLayerEntry = Entry("Plot gas cell", nextFunction=menuChoosePlotType)
-    mainMenu = Menu('Main menu', [createLayerEntry, editLayerEntry, plotLayerEntry])
+    planckPlotEntry = (Entry('Plot planck curves', nextFunction=menuPlanckType))
+    mainMenu = Menu('Main menu', [createLayerEntry, editLayerEntry, plotLayerEntry, planckPlotEntry])
     mainMenu.displayMenu()
     return
 

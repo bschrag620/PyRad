@@ -19,8 +19,9 @@ t0 = 296
 avo = 6.022140857E23
 
 
-def integrateSpectrum(spectrum, xAxis):
-    value = np.sum(np.nan_to_num(spectrum)) * utils.BASE_RESOLUTION
+def integrateSpectrum(spectrum, unitAngle=pi, res=utils.BASE_RESOLUTION):
+    value = np.sum(np.nan_to_num(spectrum))
+    value = value * unitAngle * res
     return value
 
 
@@ -335,15 +336,6 @@ class Isotope(list):
                 print('Progress for %s <%s%s>' % (molecule.name, '*' * i, '-' * (20 - i)), end='\r', flush=True)
                 i += 1
             progress += 1
-            hwRatio = line.lorentzHW / line.gaussianHW
-            #if hwRatio < .01:
-            #    x = ls.gaussianLineShape(line.gaussianHW, 0)
-            #elif hwRatio > 100:
-            #    x = ls.lorentzLineShape(line.lorentzHW, 0)
-            #else:
-            #    x = ls.pseudoVoigtShape(line.gaussianHW, line.lorentzHW, 0)
-            #intensity = pyradIntensity.intensityFactor(line.intensity, line.broadenedLine,
-            #                                           layer.T, line.lowerEnergy, self.q[layer.T], self.q296)
             intensity = line.intensity
             arrayIndex = int((line.wavenumber - layer.rangeMin) / layer.resolution)
             arrayLength = len(lineSurvey) - 1
@@ -729,11 +721,15 @@ def plot(propertyToPlot, title, plotList, fill=False):
     plt.grid('grey', linewidth=.5, linestyle=':')
     plt.title('%s' % title)
     handles = []
+    linewidth = 1.2
+    alpha =.7
     for singlePlot, color in zip(plotList, COLOR_LIST):
         yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
-        fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=.75, color=color, label='%s' % singlePlot.name)
+        fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=linewidth, alpha=alpha, color=color, label='%s' % singlePlot.name)
         handles.append(fig)
         plt.fill_between(singlePlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
+        linewidth = .7
+        alpha = .5
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')
@@ -741,17 +737,30 @@ def plot(propertyToPlot, title, plotList, fill=False):
 
 
 def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=None, surfaceSpectrum=None,
-                 planckTemperatureList=None, fill=False):
+                 planckTemperatureList=None, planckType='wavenumber', fill=False):
     plt.figure(figsize=(10, 6), dpi=80)
     plt.subplot(111, facecolor='xkcd:dark grey')
-    plt.xlabel('wavenumber cm-1')
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
-    plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
     if layer:
         rangeMin = layer.rangeMin
         rangeMax = layer.rangeMax
         title = layer.title
+    if planckType == 'wavenumber':
+        plt.xlabel('wavenumber cm-1')
+        plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
+        planckFunction = pyradPlanck.planckWavenumber
+        xAxis = np.linspace(rangeMin, rangeMax, (rangeMax - rangeMin) / utils.BASE_RESOLUTION)
+    elif planckType == 'Hz':
+        plt.xlabel('Hertz')
+        plt.ylabel('Radiance Wm-2sr-1Hz-1')
+        planckFunction = pyradPlanck.planckHz
+        xAxis = np.linspace(rangeMin, rangeMax, 1000)
+    elif planckType == 'wavelength':
+        plt.xlabel('wavelength um')
+        plt.ylabel('Radiance Wm-2sr-1um-1')
+        planckFunction = pyradPlanck.planckWavelength
+        xAxis = np.linspace(rangeMin, rangeMax, (rangeMax - rangeMin) / utils.BASE_RESOLUTION)
     plt.title('%s' % title)
     handles = []
     blue = .3
@@ -762,14 +771,10 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
     dg = .15
     if not rangeMax:
         xAxis = layer.xAxis
-    else:
-        xAxis = np.linspace(rangeMin, rangeMax, (rangeMax - rangeMin) / utils.BASE_RESOLUTION)
     for temperature in planckTemperatureList:
-        print(temperature)
-        yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
-        print(yAxis)
+        yAxis = planckFunction(xAxis, float(temperature))
         fig, = plt.plot(xAxis, yAxis, linewidth=.75, color=(red, green, blue),
-                        linestyle=':', label='%sK %sWm-2sr-1' % (temperature, int(integrateSpectrum(yAxis, xAxis))))
+                        linestyle=':', label='%sK : %sWm-2' % (temperature, int(integrateSpectrum(yAxis, res=(rangeMax - rangeMin) / len(yAxis)))))
         handles.append(fig)
         if red + dr < 0 or red + dr > 1:
             dr *= -1
@@ -785,12 +790,17 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
             blue += .2
         if red < .3 and green < .3:
             green += .4
-        print(red, green, blue)
     if objList:
-        for obj, color in zip(objList, COLOR_LIST[1:]):
+        alpha = .7
+        linewidth = 1.2
+        surfacePower = integrateSpectrum(surfaceSpectrum, pi)
+        for obj, color in zip(objList, COLOR_LIST):
             yAxis = obj.transmission(surfaceSpectrum)
-            fig, = plt.plot(layer.xAxis, yAxis, linewidth=.75, color=color, label='%s %sWm-2' % (obj.name, int(integrateSpectrum(yAxis))))
+            fig, = plt.plot(layer.xAxis, yAxis, linewidth=linewidth, alpha=alpha, color=color, label='%s : %sWm-2'
+                                                            % (obj.name, round(integrateSpectrum(yAxis, pi), 3)))
             handles.append(fig)
+            alpha = .5
+            linewidth = 1
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')
