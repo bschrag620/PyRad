@@ -365,7 +365,7 @@ MOLECULE_PARAM_COMMENTS = "#\t#\t#\n" \
                           "#\t#\t#\n"
 
 
-if sys.platform.lower() == "windows":
+if 'win' in sys.platform.lower():
     TEXT_COLORS = {'boldMagenta': '',
                    'boldLime': '',
                    'boldBlue': '',
@@ -394,7 +394,7 @@ else:
                     'regularCyan': '\x1b[0;36;48m',
                     'colorEnd': '\x1b[0m'}
 
-VERSION = '1.7'
+VERSION = '1.71'
 titleLine = "%s***********************              PyRad v%s              ***********************%s" \
             % (TEXT_COLORS['underlineCyan'], VERSION, TEXT_COLORS['colorEnd'])
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)

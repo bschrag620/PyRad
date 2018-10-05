@@ -774,7 +774,7 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
     for temperature in planckTemperatureList:
         yAxis = planckFunction(xAxis, float(temperature))
         fig, = plt.plot(xAxis, yAxis, linewidth=.75, color=(red, green, blue),
-                        linestyle=':', label='%sK : %sWm-2' % (temperature, int(integrateSpectrum(yAxis, res=(rangeMax - rangeMin) / len(yAxis)))))
+                        linestyle=':', label='%sK : %sWm-2' % (temperature, round(integrateSpectrum(yAxis, res=(rangeMax - rangeMin) / len(yAxis)), 2)))
         handles.append(fig)
         if red + dr < 0 or red + dr > 1:
             dr *= -1
@@ -797,7 +797,7 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
         for obj, color in zip(objList, COLOR_LIST):
             yAxis = obj.transmission(surfaceSpectrum)
             fig, = plt.plot(layer.xAxis, yAxis, linewidth=linewidth, alpha=alpha, color=color, label='%s : %sWm-2'
-                                                            % (obj.name, round(integrateSpectrum(yAxis, pi), 3)))
+                                                            % (obj.name, round(integrateSpectrum(yAxis, pi), 2)))
             handles.append(fig)
             alpha = .5
             linewidth = 1
