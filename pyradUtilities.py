@@ -11,6 +11,7 @@ lineSep = os.linesep
 dataDir = '%s/data' % cwd
 curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
+profileDir = '/%s/profiles' % cwd
 debuggerFilePath = '%s/logger.txt' % cwd
 now = datetime.datetime.now()
 debuggerFile = open(debuggerFilePath, 'wb')

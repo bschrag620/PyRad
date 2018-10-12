@@ -5,18 +5,69 @@ import pyradIntensity
 import pyradPlanck
 import numpy as np
 import matplotlib.pyplot as plt
-import pyradInteractive
+# import pyradInteractive
 
 
 c = 299792458.0
 k = 1.38064852E-23
-c = 299792458.0
 h = 6.62607004e-34
 pi = 3.141592653589793
+R = 8.3144598
 t0 = 296
 p0 = 1013.25
-t0 = 296
 avo = 6.022140857E23
+
+
+def wvPressure(temperature, RH):
+    wvP = RH * wvSaturationVaporPressure(temperature) / 100
+    return wvP
+
+
+def wvRH2AH(temperature, pressure, RH):
+    wvP = wvPressure(temperature, RH)
+
+    absHum = wvP / 461.5 * temperature
+    print(wvP, absHum)
+    return absHum
+
+
+def wvMixingRatio(temperature, pressure, RH):
+    e = wvPressure(temperature, RH)
+    r = .622 * e / (pressure - e)
+    return r
+
+
+def smooth(y, box_pts):
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode='same')
+    return y_smooth
+
+
+def wvSaturationVaporPressure(temperature):
+    temperature -= 273
+    tC = 647.096
+    pC = 220640
+    a1 = -7.85951783
+    a2 = 1.84408259
+    a3 = -11.7866497
+    a4 = 22.6807411
+    a5 = -15.9618719
+    a6 = 1.80122502
+    # v = 1 - temperature / tC
+    # satVP = pC * np.exp(tC / temperature * (a1 * v + a2 * v**1.5 + a3 * v**3 + a4 * v**3.5 + a5 * v**4 + a6 * v**7.5))
+    satVP = 6.11 * np.exp(17.3 * temperature / (temperature + 237.3))
+    return satVP
+
+
+def wvConcentrationFromRH(layer, RH):
+    temperature = layer.T
+    pressure = layer.P
+    concentration = wvMixingRatio(temperature, pressure, RH)
+    return concentration
+
+def linear(baseValue, baseHeight, rate, height):
+    newValue = baseValue + rate * (height - baseHeight)
+    return newValue
 
 
 def integrateSpectrum(spectrum, unitAngle=pi, res=utils.BASE_RESOLUTION):
@@ -32,6 +83,8 @@ def getCrossSection(obj):
 
 
 def resetCrossSection(obj):
+    if not obj.progressCrossSection:
+        return
     obj.crossSection = np.zeros(int((obj.rangeMax - obj.rangeMin) / utils.BASE_RESOLUTION))
     obj.progressCrossSection = False
     for child in obj:
@@ -264,16 +317,19 @@ class Isotope(list):
     def xAxis(self):
         return np.copy(self.layer.xAxis)
 
-    def getData(self):
-        print('Getting data for %s, isotope %s' % (self.molecule.name, self.globalIsoNumber))
+    def getData(self, lineSurvey=False, verbose=True):
+        if verbose:
+            print('Getting data for %s, %s, isotope %s' % (self.layer.name, self.molecule.name, self.globalIsoNumber), end='\r', flush=True)
         lineDict = utils.gatherData(self.globalIsoNumber, self.layer.effectiveRangeMin, self.layer.effectiveRangeMax)
         self.q = utils.getQData(self.globalIsoNumber)
         for line in lineDict:
-            self.append(Line(line, lineDict[line]['intensity'], lineDict[line]['einsteinA'],
+            # need to soft code the intensity value, depending on resolution setting
+            if lineDict[line]['intensity'] > 1E-22:
+                self.append(Line(line, lineDict[line]['intensity'], lineDict[line]['einsteinA'],
                              lineDict[line]['airHalfWidth'], lineDict[line]['selfHalfWidth'],
                              lineDict[line]['lowerEnergy'], lineDict[line]['tempExponent'],
                              lineDict[line]['pressureShift'], self))
-        self.createLineSurvey()
+        # self.createLineSurvey()
 
     def createCrossSection(self):
         molecule = self.molecule
@@ -285,9 +341,12 @@ class Isotope(list):
         trackGauss = 0
         trackLorentz = 0
         trackVoigt = 0
+        if len(self) == 0:
+            self.progressCrossSection = True
+            return
         for line in self:
             if progress > i * alertInterval:
-                print('Progress for %s <%s%s>' % (molecule.name, '*' * i, '-' * (20 - i)), end='\r')
+                print('Progress for %s: %s, temperature: %s, pressure: %s <%s%s>' % (layer.name, molecule.name, layer.T, layer.P, '*' * i, '-' * (20 - i)), end='\r')
                 os.sys.stdout.flush()
                 i += 1
             progress += 1
@@ -358,6 +417,9 @@ class Isotope(list):
         emitted = self.emittance * self.planck(self.T)
         return transmitted + emitted
 
+    def returnCopy(self):
+        return self.linelist()
+
 
 class Molecule(list):
     def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
@@ -402,7 +464,7 @@ class Molecule(list):
         valueUnit = self.concText.split()
         tempDict = {valueUnit[1]: float(valueUnit[0])}
         newMolecule = Molecule(self.name, self.layer, isotopeDepth=int(self.isotopeDepth), **tempDict)
-        newMolecule.getData()
+        newMolecule.getData(verbose=False)
         return newMolecule
 
     def setPercentage(self, percentage):
@@ -424,9 +486,9 @@ class Molecule(list):
         self.setPPM(concentration * 1E6)
         resetCrossSection(self)
 
-    def getData(self):
+    def getData(self, verbose=True):
         for isotope in self:
-            isotope.getData()
+            isotope.getData(verbose)
 
     def createCrossSection(self):
         tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
@@ -506,11 +568,15 @@ class Molecule(list):
     def distanceFromCenter(self):
         return self.layer.distanceFromCenter
 
+    @property
+    def molarMass(self):
+        return self[0].molmass
+
 
 class Layer(list):
     hasAtmosphere = False
 
-    def __init__(self, depth, T, P, rangeMin, rangeMax, atmosphere=None, name='', dynamicResolution=True):
+    def __init__(self, depth, T, P, rangeMin, rangeMax, height=0.0, atmosphere=None, name='', dynamicResolution=True):
         super(Layer, self).__init__(self)
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
@@ -521,6 +587,8 @@ class Layer(list):
         self.effectiveRangeMin = max(self.rangeMin - self.distanceFromCenter, 0)
         self.effectiveRangeMax = self.rangeMax + self.distanceFromCenter
         self.dynamicResolution = dynamicResolution
+        self.surfaceSpectrum = None
+        self.height = height
         if not dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
@@ -537,7 +605,8 @@ class Layer(list):
         self.crossSection = np.zeros(int((rangeMax - rangeMin) / utils.BASE_RESOLUTION))
         self.progressCrossSection = False
         if not name:
-            name = 'layer %s' % self.atmosphere.nextLayerName()
+            name = '%s' % self.atmosphere.nextLayerName()
+        self.atmosphere.append(self)
         self.name = name
 
     def __str__(self):
@@ -552,6 +621,16 @@ class Layer(list):
             tempAxis += getCrossSection(molecule)
         self.progressCrossSection = True
         self.crossSection = tempAxis
+
+    def returnMolecule(self, name):
+        for m in self:
+            if m.name == name:
+                return m
+        return False
+
+    @property
+    def meanHeight(self):
+        return self.height + .5 * self.depth
 
     @property
     def lineSurvey(self):
@@ -596,6 +675,37 @@ class Layer(list):
     def emittance(self):
         return self.emissivity
 
+    @property
+    def molarMass(self):
+        mass = 0
+        for mol in self:
+            mass += mol.molarMass * mol.concentration
+        return mass
+
+    @property
+    def density(self):
+        return self.P * 100 / self.T / self.specGasConstant
+
+    @property
+    def mass(self):
+        return self.density * self.depth / 100
+
+    @property
+    def specGasConstant(self):
+        return R * 1000 / self.molarMass
+
+    @property
+    def temperatureAtHeight(self):
+        return int(self.atmosphere.temperatureAtHeight(self.meanHeight))
+
+    @property
+    def pressureAtHeight(self):
+        return self.atmosphere.pressureAtHeight(self.meanHeight)
+
+    @property
+    def densityAtHeight(self):
+        return self.atmosphere.densityAtHeight(self.temperatureAtHeight, self.specGasConstant)
+
     def changeRange(self, rangeMin, rangeMax):
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
@@ -627,12 +737,14 @@ class Layer(list):
         molecule.getData()
         return molecule
 
-    def returnCopy(self):
-        newCopy = Layer(self.depth, self.T, self.P, self.rangeMin, self.rangeMax,
-                        self.atmosphere, name=self.atmosphere.nextLayerName(), dynamicResolution=self.dynamicResolution)
+    def returnCopy(self, name=None):
+        if not name:
+            name = self.atmosphere.nextLayerName()
+        newCopy = Layer(self.depth, self.T, self.P, self.rangeMin, self.rangeMax, height=self.height,
+                        atmosphere=self.atmosphere, name=name, dynamicResolution=self.dynamicResolution)
         for molecule in self:
-            newMolecule = molecule.returnCopy()
-            newCopy.append(newMolecule)
+            newCopy.addMolecule(molecule.name, molecule.isotopeDepth, concentration=molecule.concentration)
+        print('%s copied to %s' % (self.name, newCopy.name))
         return newCopy
 
     def returnMoleculeObjects(self):
@@ -651,9 +763,12 @@ class Layer(list):
 
 
 class Atmosphere(list):
-    def __init__(self, name):
+    def __init__(self, name, rangeMin=0, rangeMax=0, planet=None):
         super().__init__(self)
         self.name = name
+        self.rangeMin = rangeMin
+        self.rangeMax = rangeMax
+        self.planet = planet
 
     def __str__(self):
         return self.name
@@ -661,11 +776,11 @@ class Atmosphere(list):
     def __bool__(self):
         return True
 
-    def addLayer(self, depth, T, P, rangeMin, rangeMax, name=None, dynamicResolution=True):
+    def addLayer(self, depth, T, P, rangeMin, rangeMax, name=None, dynamicResolution=True, height=0.0):
         if not name:
             name = self.nextLayerName()
-        newLayer = Layer(depth, T, P, rangeMin, rangeMax, atmosphere=self, name=name, dynamicResolution=dynamicResolution)
-        self.append(newLayer)
+        newLayer = Layer(depth, T, P, rangeMin, rangeMax, atmosphere=self, name=name,
+                         dynamicResolution=dynamicResolution, height=height)
         return newLayer
 
     def nextLayerName(self):
@@ -678,10 +793,240 @@ class Atmosphere(list):
         return tempList
 
     def returnLayerObjects(self):
+        if len(self) == 0:
+            return False
         tempList = []
         for layer in self:
             tempList.append(layer)
         return tempList
+
+    def temperatureAtHeight(self, height):
+        ruleList = self.planet.returnApplicableRules(height, 'temperature')
+        if len(ruleList) > 1:
+            print('Multiple rules found for height %s: %s' % (height, ruleList))
+        rule = ruleList[0]
+        temperature = rule.rateFunction(rule.baseValue, rule.baseHeight, rule.rate, height)
+        return temperature
+
+    def pressureAtHeight(self, height):
+        height = height / 100
+        ruleList = self.planet.returnApplicableRules(height, 'temperature')
+        if len(ruleList) > 1:
+            print('Multiple rules found for height %s: %s' % (height, ruleList))
+        rule = ruleList[0]
+        temperature = self.temperatureAtHeight(height)
+        if rule.rate != 0:
+            pressure = rule.basePressure * (rule.baseValue / temperature) ** \
+                  (self.planet.gravity * self.planet.molarMass / R / rule.rate)
+        else:
+            pressure = rule.basePressure * \
+                       np.exp(-self.planet.gravity * self.planet.molarMass *
+                              (height - rule.baseHeight) / R / rule.baseValue)
+        return pressure
+
+    def compositionAtHeight(self, height, molecule):
+        ruleList = self.planet.returnApplicableRules(height, 'composition')
+        if not ruleList:
+            return molecule.concentration
+        for rule in ruleList:
+            if rule.molecule.name == molecule.name:
+                concentration = rule.rateFunction(rule.baseValue, rule.baseHeight, rule.rate, height)
+                return concentration
+        return molecule.concentration
+
+    def densityAtHeight(self, height, gasConstant):
+        temperature = self.temperatureAtHeight(height)
+        pressure = self.pressureAtHeight(height)
+        density = pressure * 100 / gasConstant / temperature
+        return density
+
+
+class Planet:
+    def __init__(self, name, pressure, temperature, molarMass=0.0289644,
+                 gravity=9.80665, rangeMin=0, rangeMax=2000, initialThickness=100):
+        self.name = name
+        self.mass = 0
+        self.gravity = gravity
+        self.molarMass = molarMass
+        self.radius = 0
+        self.surfacePressure = pressure
+        self.surfaceTemperature = temperature
+        self.atmosphereRules = []
+        self.rangeMin = rangeMin
+        self.rangeMax = rangeMax
+        self.atmosphere = Atmosphere("%s's atmosphere" % self.name, planet=self)
+        self.initialLayer =  \
+            self.atmosphere.addLayer(initialThickness, temperature, pressure, rangeMin, rangeMax, height=0)
+
+    def setMass(self, mass):
+        self.mass = mass
+
+    def addLapseRate(self, name, baseHeight, baseTemperature, finalHeight, finalValue, basePressure, rateFunction=linear):
+        self.atmosphereRules.append(AtmosphereRule(
+            name, baseHeight, baseTemperature, finalHeight, finalValue, 'temperature',
+            basePressure, rateFunction=rateFunction))
+
+    def addCompositionRate(self, name, baseHeight, baseValue, finalHeight, rate, molecule, rateFunction=linear):
+        self.atmosphereRules.append(AtmosphereRule(
+            name, baseHeight, baseValue, finalHeight, rate, ruleType='composition',
+            molecule=molecule, rateFunction=rateFunction))
+
+    def setRadius(self, radius):
+        self.radius = radius
+
+    def setGravity(self, gravity):
+        self.gravity = gravity
+
+    def setSurfacePressure(self, pressure):
+        self.surfacePressure = pressure
+
+    def setSurfaceTemperature(self, temperature):
+        self.surfaceTemperature = temperature
+
+    def setSurfaceComposition(self):
+        pass
+
+    def returnApplicableRules(self, height, ruleType):
+        ruleList = []
+        for rule in self.atmosphereRules:
+            if rule.isInRange(height, ruleType):
+                ruleList.append(rule)
+        if not ruleList:
+            return False
+        return ruleList
+
+    def temperatureAtHeight(self, height):
+        return self.atmosphere.temperatureAtHeight(height)
+
+    def pressureAtHeight(self, height):
+        return self.atmosphere.pressureAtHeight(height)
+
+    def densityAtHeight(self, height):
+        return self.atmosphere.densityAtHeight(height)
+
+    def compositionAtHeight(self, height, molecule):
+        return self.atmosphere.compositionAtHeight(height, molecule)
+
+    def addMolecule(self, name, isotopeDepth=1, **abundance):
+        molecule = self.initialLayer.addMolecule(name, isotopeDepth, **abundance)
+        return molecule
+
+    def sliceAtm(self):
+        acceptSetup = False
+        height = 0
+        while not acceptSetup:
+            mass = self.initialLayer.mass
+            layer = self.initialLayer.returnCopy(name='temp layer')
+            print('p %s, T %s, depth %s, height %s' % (layer.P, layer.T, layer.depth, layer.height))
+            heightList = [height]
+            tempList = [layer.T]
+            pressureList = [layer.P]
+            depthList = [layer.depth]
+            changePoints = self.atmChangePoints
+            while layer.height + layer.depth < 9000000:
+                print('temp: %s, press: %s, baseHeight: %skm, meanHeight: %s, depth: %s, tarMass: %s, layMass: %s' % (
+                       int(layer.T), layer.P, layer.height / 100000, layer.meanHeight, layer.depth, mass, layer.mass))
+                newHeight = heightList[-1] + depthList[-1]
+                heightList.append(newHeight)
+                tempList.append(self.temperatureAtHeight(newHeight))
+                pressureList.append(self.pressureAtHeight(newHeight))
+                layer.P = pressureList[-1]
+                layer.T = tempList[-1]
+                layer.height = heightList[-1]
+                layer.depth = (mass / layer.density * 100)
+                '''if layer.height + layer.depth > changePoints[0]:
+                    tempHeight = changePoints.pop(0)
+                    layer.depth = tempHeight - layer.height
+                    while changePoints:
+                        if changePoints[0] == tempHeight:
+                            changePoints.pop(0)
+                        else:
+                            break'''
+                if layer.depth != 0:
+                    depthList.append(layer.depth)
+            print('Total # of layers: %s' % len(heightList))
+            isValid = False
+            while not isValid:
+                self.atmosphere.pop()
+                userInput = input('Accept the current slicing (y/n): ')
+                if userInput.lower()[0] == 'n':
+                    isValid = True
+                    validNumber = False
+                    while not validNumber:
+                        print('Enter the new initial depth. Larger depth will decrease number of layers, smaller will increase')
+                        userNumber = input('Current depth is %scm:' % utils.limeText(self.initialLayer.depth))
+                        try:
+                            newDepth = float(userNumber)
+                            self.initialLayer.depth = newDepth
+                            validNumber = True
+                        except ValueError:
+                            print('Invalid number.')
+                elif userInput.lower()[0] == 'y':
+                    isValid = True
+                    acceptSetup = True
+        # print(len(self.atmosphere), self.atmosphere[0].name)
+        heightList.pop(0)
+        depthList.pop(0)
+        for i in range(0, len(heightList) - 1):
+            height = heightList[i]
+            depth = depthList[i]
+            newLayer = self.initialLayer.returnCopy()
+            newLayer.height = height
+            newLayer.depth = depth
+            newLayer.T = int(self.temperatureAtHeight(newLayer.meanHeight))
+            newLayer.P = self.pressureAtHeight(newLayer.meanHeight)
+            for molecule in newLayer:
+                molecule.concentration = self.compositionAtHeight(newLayer.meanHeight, molecule)
+        surfaceSpectrum = pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature)
+
+        for layer in self.atmosphere:
+            layer.createCrossSection()
+            transmission = layer.transmission(surfaceSpectrum)
+            surfaceSpectrum = transmission
+        plt.plot(self.initialLayer.xAxis, smooth(surfaceSpectrum, 100), linewidth=.5)
+        plt.plot(self.initialLayer.xAxis, pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature), linewidth=.5)
+        plt.plot(self.initialLayer.xAxis,
+                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, 280), linewidth=.5)
+        plt.plot(self.initialLayer.xAxis,
+                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, 260), linewidth=.5)
+        plt.plot(self.initialLayer.xAxis,
+                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, 240), linewidth=.5)
+        plt.show()
+
+    @property
+    def yAxis(self):
+        return np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
+
+    @property
+    def xAxis(self):
+        return np.linspace(self.rangeMin, self.rangeMax, (self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION,
+                           endpoint=True)
+
+    @property
+    def atmChangePoints(self):
+        changePointList = []
+        for rule in self.atmosphereRules:
+            changePointList.append(rule.finalHeight)
+        return sorted(changePointList)
+
+
+class AtmosphereRule:
+    def __init__(self, name, baseHeight, baseValue, finalHeight, finalValue, ruleType, basePressure=0,
+                 molecule=None, rateFunction=linear):
+        self.name = name
+        self.baseHeight = baseHeight
+        self.baseValue = baseValue
+        self.finalHeight = finalHeight
+        self.finalValue = finalValue
+        if rateFunction == linear:
+            self.rate = (self.finalValue - self.baseValue) / (self.finalHeight - self.baseHeight)
+        self.ruleType = ruleType
+        self.molecule = molecule
+        self.basePressure = basePressure
+        self.rateFunction = rateFunction
+
+    def isInRange(self, height, ruleType):
+        return self.baseHeight < height <= self.finalHeight and self.ruleType == ruleType
 
 
 def returnPlot(obj, propertyToPlot):
@@ -722,10 +1067,11 @@ def plot(propertyToPlot, title, plotList, fill=False):
     plt.title('%s' % title)
     handles = []
     linewidth = 1.2
-    alpha =.7
+    alpha = .7
     for singlePlot, color in zip(plotList, COLOR_LIST):
         yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
-        fig, = plt.plot(singlePlot.xAxis, yAxis, linewidth=linewidth, alpha=alpha, color=color, label='%s' % singlePlot.name)
+        fig, = plt.plot(singlePlot.xAxis,  smooth(yAxis, 50), linewidth=linewidth, alpha=alpha, color=color,
+                        label='%s' % singlePlot.name)
         handles.append(fig)
         plt.fill_between(singlePlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
         linewidth = .7
@@ -737,7 +1083,7 @@ def plot(propertyToPlot, title, plotList, fill=False):
 
 
 def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=None, surfaceSpectrum=None,
-                 planckTemperatureList=None, planckType='wavenumber', fill=False):
+                 planckTemperatureList=None, planckType='wavenumber'):
     plt.figure(figsize=(10, 6), dpi=80)
     plt.subplot(111, facecolor='xkcd:dark grey')
     plt.margins(0.01)
@@ -756,7 +1102,7 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
         plt.ylabel('Radiance Wm-2sr-1Hz-1')
         planckFunction = pyradPlanck.planckHz
         xAxis = np.linspace(rangeMin, rangeMax, 1000)
-    elif planckType == 'wavelength':
+    else:
         plt.xlabel('wavelength um')
         plt.ylabel('Radiance Wm-2sr-1um-1')
         planckFunction = pyradPlanck.planckWavelength
@@ -774,7 +1120,8 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
     for temperature in planckTemperatureList:
         yAxis = planckFunction(xAxis, float(temperature))
         fig, = plt.plot(xAxis, yAxis, linewidth=.75, color=(red, green, blue),
-                        linestyle=':', label='%sK : %sWm-2' % (temperature, round(integrateSpectrum(yAxis, res=(rangeMax - rangeMin) / len(yAxis)), 2)))
+                        linestyle=':', label='%sK : %sWm-2' %
+                        (temperature, round(integrateSpectrum(yAxis, res=(rangeMax - rangeMin) / len(yAxis)), 2)))
         handles.append(fig)
         if red + dr < 0 or red + dr > 1:
             dr *= -1
@@ -793,11 +1140,11 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
     if objList:
         alpha = .7
         linewidth = 1.2
-        surfacePower = integrateSpectrum(surfaceSpectrum, pi)
         for obj, color in zip(objList, COLOR_LIST):
             yAxis = obj.transmission(surfaceSpectrum)
-            fig, = plt.plot(layer.xAxis, yAxis, linewidth=linewidth, alpha=alpha, color=color, label='%s : %sWm-2'
-                                                            % (obj.name, round(integrateSpectrum(yAxis, pi), 2)))
+            fig, = plt.plot(layer.xAxis, yAxis, linewidth=linewidth,
+                            alpha=alpha, color=color,
+                            label='%s : %sWm-2' % (obj.name, round(integrateSpectrum(yAxis, pi), 2)))
             handles.append(fig)
             alpha = .5
             linewidth = 1
@@ -859,7 +1206,8 @@ HITRAN_GLOBAL_ISO = {1: {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 129},
                      46: {1: 97, 2: 98, 3: 99, 4: 100},
                      47: {1: 114},
                      48: {1: 123},
-                     49: {1: 124, 2: 125}}
+                     49: {1: 124, 2: 125},
+                     901: {1: 901}}
 
 COLOR_LIST = ['xkcd:white',
               'xkcd:bright orange',
@@ -882,8 +1230,8 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'o': 34, 'clono2': 35, 'no+': 36, 'hobr': 37,
                'c2h4': 38, 'ch3oh': 39, 'ch3br': 40, 'ch3cn': 41,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
-               'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
-
+               'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49,
+               'ar': 901}
 
 
 if __name__ == 'main':
