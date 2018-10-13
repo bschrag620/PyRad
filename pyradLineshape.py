@@ -5,10 +5,10 @@ import pyradUtilities as utils
 #cachedVoigt = utils.getCurves('voigt', utils.BASE_RESOLUTION)
 #cachedLorentz = utils.getCurves('lorentz', utils.BASE_RESOLUTION)
 #cachedGaussian = utils.getCurves('gaussian', utils.BASE_RESOLUTION)
-cachedLorentz = {}
-cachedGaussian = {}
-newLorentz = {}
-newGaussian = {}
+#cachedLorentz = {}
+#cachedGaussian = {}
+#newLorentz = {}
+#newGaussian = {}
 print('\n', end='\r')
 
 h = 6.62607004e-34
@@ -30,28 +30,28 @@ def lorentzHW(airHalfWidth, selfHalfWidth, P, T, q, tExponent):
 
 
 def gaussianLineShape(halfWidth, xValue):
-    if isinstance(xValue, np.ndarray) and str(halfWidth) in cachedGaussian:
-        length = len(xValue)
-        cachedCurve = cachedGaussian[str(halfWidth)]
-        if len(cachedCurve) >= length:
-            return cachedCurve[:length]
+#    if isinstance(xValue, np.ndarray) and str(halfWidth) in cachedGaussian:
+#        length = len(xValue)
+#        cachedCurve = cachedGaussian[str(halfWidth)]
+#        if len(cachedCurve) >= length:
+#            return cachedCurve[:length]
     """Returns the right half of a gaussian curve, used for temp broadening in low pressure scenarios"""
     lineShape = np.exp(-xValue**2 / halfWidth**2) / halfWidth / np.sqrt(pi)
-    cachedGaussian[halfWidth] = lineShape
-    newGaussian[halfWidth] = lineShape
+    #cachedGaussian[halfWidth] = lineShape
+    #newGaussian[halfWidth] = lineShape
     return lineShape
 
 
 def lorentzLineShape(halfWidth, xValue):
-    if isinstance(xValue, np.ndarray) and str(halfWidth) in cachedLorentz:
-        length = len(xValue)
-        cachedCurve = cachedLorentz[str(halfWidth)]
-        if len(cachedCurve) >= length:
-            return cachedCurve[:length]
+#    if isinstance(xValue, np.ndarray) and str(halfWidth) in cachedLorentz:
+#        length = len(xValue)
+#        cachedCurve = cachedLorentz[str(halfWidth)]
+#        if len(cachedCurve) >= length:
+#            return cachedCurve[:length]
     """Returns the right half of a lorentzian curve."""
     lineShape = halfWidth / pi / (xValue**2 + halfWidth**2)
-    cachedLorentz[halfWidth] = lineShape
-    newLorentz[halfWidth] = lineShape
+    #cachedLorentz[halfWidth] = lineShape
+    #newLorentz[halfWidth] = lineShape
     return lineShape
 
 

@@ -11,7 +11,7 @@ lineSep = os.linesep
 dataDir = '%s/data' % cwd
 curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
-profileDir = '/%s/profiles' % cwd
+profileDir = '/%s/profiles' % dataDir
 debuggerFilePath = '%s/logger.txt' % cwd
 now = datetime.datetime.now()
 debuggerFile = open(debuggerFilePath, 'wb')
@@ -56,7 +56,7 @@ def logToFile(text):
 def setupDir():
     print('Verifying data structure...', end='')
     sys.stdout.flush()
-    directoryList = [dataDir, curvesDir]
+    directoryList = [dataDir, curvesDir, profileDir]
     fileList = []
     directoryCheck = True
     fileCheck = True
@@ -92,7 +92,83 @@ def openReturnLines(fullPath):
         lineList.pop(0)
     return lineList
 
-  
+
+def writePlanetProfile(name, layer):
+    folderPath = '%s/%s' % (profileDir, name)
+    if not os.path.isdir(folderPath):
+        os.mkdir(folderPath)
+    filePath = '%s/%s.pyr' % (folderPath, layer.name)
+    openFile = open(filePath, 'wb')
+    text = ('depth: %s\n'
+            'T: %s\n'
+            'P: %s\n'
+            'rangeMin: %s\n'
+            'rangeMax: %s\n'
+            'height: %s\n'
+            'name: %s\n'
+            '##\t\tlayer absorption coefficient\t\t##\n'
+            'absCoef: %s'
+            % (layer.depth, int(layer.T), layer.P, layer.rangeMin, layer.rangeMax, layer.height, layer.name,
+               ','.join(map(str, layer.absCoef.tolist()))))
+    openFile.write(text.encode('utf-8'))
+    openFile.close()
+    print('absCoef written to profiles/%s.pyr' % layer.name)
+    return
+
+
+def checkPlanetProfile(name, length):
+    folderPath = '%s/%s' % (profileDir, name)
+    if not os.path.isdir(folderPath):
+        os.mkdir(folderPath)
+        return False
+    else:
+        for i in range(1, length + 1):
+            fileName = 'Layer %s:%s' % (i, length)
+            filePath = '%s/%s.pyr' % (folderPath, fileName)
+            if not os.path.isfile(filePath):
+                print('%s missing' % fileName)
+                return False
+    return True
+
+
+def profileLength(name):
+    folderPath = '%s/%s' % (profileDir, name)
+    return len(os.listdir(folderPath))
+
+def emptyProfileDirectory(name):
+    folderPath = '%s/%s' % (profileDir, name)
+    fileList = os.listdir(folderPath)
+    for file in fileList:
+        filePath = '%s/%s' % (folderPath, file)
+        os.remove(filePath)
+    os.removedirs(folderPath)
+    return
+
+def readPlanetProfile(name, layerNumber, length):
+    folderPath = '%s/%s' % (profileDir, name)
+    fileName = 'Layer %s:%s' % (layerNumber, length)
+    filePath = '%s/%s.pyr' % (folderPath, fileName)
+    lines = openReturnLines(filePath)
+    layerDict = {}
+    for line in lines:
+        keyValue = line.split(':')
+        if line[0] == '#':
+            pass
+        elif keyValue[0] == 'name':
+            layerDict[keyValue[0]] = keyValue[1]
+        elif keyValue[0] == 'absCoef':
+            absList = keyValue[1].split(',')
+            absCoefList = []
+            for value in absList:
+                absCoefList.append(float(value))
+            layerDict[keyValue[0]] = absCoefList
+        elif keyValue[0] == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
+            layerDict[keyValue[0]] = int(keyValue[1])
+        else:
+            layerDict[keyValue[0]] = float(keyValue[1])
+    return layerDict
+
+
 def writeDictListToFile(dictionary, fullPath, comments=None, mode='wb'):
     openFile = open(fullPath, mode)
     if comments:

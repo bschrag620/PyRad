@@ -18,6 +18,20 @@ p0 = 1013.25
 avo = 6.022140857E23
 
 
+def yesOrNo(promptText):
+    validInput = False
+    while not validInput:
+        userSelection = input(promptText)
+        if not userSelection:
+            pass
+        elif userSelection.lower()[0] == 'y':
+            return True
+        elif userSelection.lower()[0] == 'n':
+            return False
+        else:
+            print('Invalid choice.')
+
+
 def wvPressure(temperature, RH):
     wvP = RH * wvSaturationVaporPressure(temperature) / 100
     return wvP
@@ -346,8 +360,9 @@ class Isotope(list):
             return
         for line in self:
             if progress > i * alertInterval:
-                print('Progress for %s: %s, temperature: %s, pressure: %s <%s%s>' % (layer.name, molecule.name, layer.T, layer.P, '*' * i, '-' * (20 - i)), end='\r')
-                os.sys.stdout.flush()
+                print('Progress for %s: %s, K: %s, mBar: %s, km: %s <%s%s>'
+                      % (layer.name, molecule.name, layer.T, round(layer.P, 2),
+                         round(layer.height / 100000, 2), '*' * i, '-' * (20 - i)), end='\r', flush=True)
                 i += 1
             progress += 1
             xValues = np.arange(0, layer.distanceFromCenter, layer.resolution)
@@ -379,7 +394,7 @@ class Isotope(list):
                                                          (self.rangeMax - self.rangeMin) / self.resolution,
                                                          endpoint=True),
                                              crossSection)
-        print('\ngaussian only: %s\t lorentz only: %s\t voigt: %s\n' % (trackGauss, trackLorentz, trackVoigt), end='\r')
+        # print('\ngaussian only: %s\t lorentz only: %s\t voigt: %s\n' % (trackGauss, trackLorentz, trackVoigt), end='\r')
         self.progressCrossSection = True
 
     def createLineSurvey(self):
@@ -603,7 +618,9 @@ class Layer(list):
             self.atmosphere = atmosphere
             self.hasAtmosphere = atmosphere
         self.crossSection = np.zeros(int((rangeMax - rangeMin) / utils.BASE_RESOLUTION))
+        self.absorptionCoefficient = np.zeros(int((rangeMax - rangeMin) / utils.BASE_RESOLUTION))
         self.progressCrossSection = False
+        self.progressAbsCoef = False
         if not name:
             name = '%s' % self.atmosphere.nextLayerName()
         self.atmosphere.append(self)
@@ -650,10 +667,11 @@ class Layer(list):
 
     @property
     def absCoef(self):
-        tempAxis = np.zeros(int((self.rangeMax - self.rangeMin) / utils.BASE_RESOLUTION))
-        for molecule in self:
-            tempAxis += getAbsCoef(molecule)
-        return tempAxis
+        if not self.progressAbsCoef:
+            for molecule in self:
+                self.absorptionCoefficient += getAbsCoef(molecule)
+        self.progressAbsCoef = True
+        return self.absorptionCoefficient
 
     @property
     def transmittance(self):
@@ -842,21 +860,25 @@ class Atmosphere(list):
 
 
 class Planet:
-    def __init__(self, name, pressure, temperature, molarMass=0.0289644,
+    def __init__(self, name, pressure, temperature, maxHeight, molarMass=0.0289644,
                  gravity=9.80665, rangeMin=0, rangeMax=2000, initialThickness=100):
         self.name = name
         self.mass = 0
         self.gravity = gravity
+        self.maxHeight = maxHeight
         self.molarMass = molarMass
         self.radius = 0
         self.surfacePressure = pressure
         self.surfaceTemperature = temperature
         self.atmosphereRules = []
+        self.heightList = []
+        self.depthList = []
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
         self.atmosphere = Atmosphere("%s's atmosphere" % self.name, planet=self)
         self.initialLayer =  \
             self.atmosphere.addLayer(initialThickness, temperature, pressure, rangeMin, rangeMax, height=0)
+        self.progressProfileLoaded = False
 
     def setMass(self, mass):
         self.mass = mass
@@ -918,72 +940,70 @@ class Planet:
             mass = self.initialLayer.mass
             layer = self.initialLayer.returnCopy(name='temp layer')
             print('p %s, T %s, depth %s, height %s' % (layer.P, layer.T, layer.depth, layer.height))
-            heightList = [height]
+            self.heightList = [height]
             tempList = [layer.T]
             pressureList = [layer.P]
-            depthList = [layer.depth]
-            changePoints = self.atmChangePoints
-            while layer.height + layer.depth < 9000000:
-                print('temp: %s, press: %s, baseHeight: %skm, meanHeight: %s, depth: %s, tarMass: %s, layMass: %s' % (
-                       int(layer.T), layer.P, layer.height / 100000, layer.meanHeight, layer.depth, mass, layer.mass))
-                newHeight = heightList[-1] + depthList[-1]
-                heightList.append(newHeight)
+            self.depthList = [layer.depth]
+            while layer.height + layer.depth < self.maxHeight:
+                print('K: %s, mBar: %s, baseHeight: %skm, depth : %skm, layMass: %s' % (
+                       int(layer.T), round(layer.P, 2), round(layer.height / 100000, 2), round(layer.depth / 100000, 2), round(layer.mass, 2)))
+                newHeight = self.heightList[-1] + self.depthList[-1]
+                self.heightList.append(newHeight)
                 tempList.append(self.temperatureAtHeight(newHeight))
                 pressureList.append(self.pressureAtHeight(newHeight))
                 layer.P = pressureList[-1]
                 layer.T = tempList[-1]
-                layer.height = heightList[-1]
+                layer.height = self.heightList[-1]
                 layer.depth = (mass / layer.density * 100)
-                '''if layer.height + layer.depth > changePoints[0]:
-                    tempHeight = changePoints.pop(0)
-                    layer.depth = tempHeight - layer.height
-                    while changePoints:
-                        if changePoints[0] == tempHeight:
-                            changePoints.pop(0)
-                        else:
-                            break'''
                 if layer.depth != 0:
-                    depthList.append(layer.depth)
-            print('Total # of layers: %s' % len(heightList))
-            isValid = False
-            while not isValid:
-                self.atmosphere.pop()
-                userInput = input('Accept the current slicing (y/n): ')
-                if userInput.lower()[0] == 'n':
-                    isValid = True
-                    validNumber = False
-                    while not validNumber:
-                        print('Enter the new initial depth. Larger depth will decrease number of layers, smaller will increase')
-                        userNumber = input('Current depth is %scm:' % utils.limeText(self.initialLayer.depth))
-                        try:
-                            newDepth = float(userNumber)
-                            self.initialLayer.depth = newDepth
-                            validNumber = True
-                        except ValueError:
-                            print('Invalid number.')
-                elif userInput.lower()[0] == 'y':
-                    isValid = True
-                    acceptSetup = True
-        # print(len(self.atmosphere), self.atmosphere[0].name)
-        heightList.pop(0)
-        depthList.pop(0)
-        for i in range(0, len(heightList) - 1):
-            height = heightList[i]
-            depth = depthList[i]
-            newLayer = self.initialLayer.returnCopy()
-            newLayer.height = height
-            newLayer.depth = depth
-            newLayer.T = int(self.temperatureAtHeight(newLayer.meanHeight))
-            newLayer.P = self.pressureAtHeight(newLayer.meanHeight)
-            for molecule in newLayer:
-                molecule.concentration = self.compositionAtHeight(newLayer.meanHeight, molecule)
-        surfaceSpectrum = pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature)
+                    self.depthList.append(layer.depth)
+            if self.heightList[-1] + .5 * self.depthList[-1] > self.maxHeight:
+                self.heightList.pop()
+                self.depthList.pop()
+            print('Total # of layers: %s' % len(self.heightList))
+            self.atmosphere.pop()
+            if yesOrNo('Accept the current slicing (y/n): '):
+                acceptSetup = True
+            else:
+                validNumber = False
+                while not validNumber:
+                    print(
+                        'Enter the new initial depth. Larger depth will decrease number of layers, smaller will increase')
+                    userNumber = input('Current depth is %scm:' % utils.limeText(self.initialLayer.depth))
+                    try:
+                        newDepth = float(userNumber)
+                        self.initialLayer.depth = newDepth
+                        validNumber = True
+                    except ValueError:
+                        print('Invalid number.')
+        return
 
-        for layer in self.atmosphere:
+    def processLayers(self):
+        if not self.heightList:
+            self.sliceAtm()
+        '''if utils.checkPlanetProfile(self.name, len(self.heightList)):
+            print('Files found, loading profile %s' % self.name)
+            self.loadProfile()
+            return'''
+        #surfaceSpectrum = pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature)
+        layer = self.initialLayer
+        i = 1
+        for height, depth in zip(self.heightList, self.depthList):
+            layer.name = 'Layer %s:%s' % (i, len(self.heightList))
+            layer.height = height
+            layer.depth = depth
+            layer.T = int(self.temperatureAtHeight(layer.meanHeight))
+            layer.P = self.pressureAtHeight(layer.meanHeight)
+            for molecule in layer:
+                molecule.concentration = self.compositionAtHeight(layer.meanHeight, molecule)
             layer.createCrossSection()
-            transmission = layer.transmission(surfaceSpectrum)
-            surfaceSpectrum = transmission
-        plt.plot(self.initialLayer.xAxis, smooth(surfaceSpectrum, 100), linewidth=.5)
+            utils.writePlanetProfile(self.name, layer)
+            #surfaceSpectrum = layer.transmission(surfaceSpectrum)
+            resetCrossSection(layer)
+            layer.absorptionCoefficient = np.zeros(len(layer.crossSection))
+            layer.progressAbsCoef = False
+            i += 1
+        '''plt.plot(self.initialLayer.xAxis, smooth(surfaceSpectrum, 50), linewidth=.5)
         plt.plot(self.initialLayer.xAxis, pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature), linewidth=.5)
         plt.plot(self.initialLayer.xAxis,
                  pyradPlanck.planckWavenumber(self.initialLayer.xAxis, 280), linewidth=.5)
@@ -991,7 +1011,48 @@ class Planet:
                  pyradPlanck.planckWavenumber(self.initialLayer.xAxis, 260), linewidth=.5)
         plt.plot(self.initialLayer.xAxis,
                  pyradPlanck.planckWavenumber(self.initialLayer.xAxis, 240), linewidth=.5)
+        plt.show()'''
+
+    def loadProfile(self):
+        if not utils.checkPlanetProfile(self.name, len(self.heightList)):
+            self.processLayers()
+        else:
+            fileLength = utils.profileLength(self.name)
+            if not yesOrNo('%s layers found for profile %s. Load profile (y/n):' % (fileLength, self.name)):
+                if yesOrNo('Are you sure, selecting yes will delete all previous profile data (y/n): '):
+                    utils.emptyProfileDirectory(self.name)
+                    self.processLayers()
+        fileLength = utils.profileLength(self.name)
+        while len(self.atmosphere) > 0:
+            self.atmosphere.pop()
+        for i in range(1, fileLength + 1):
+            lP = utils.readPlanetProfile(self.name, i, fileLength)
+            layer = Layer(lP['depth'], lP['T'], lP['P'], lP['rangeMin'], lP['rangeMax'], name=lP['name'])
+            self.atmosphere.append(layer)
+            layer.absorptionCoefficient = np.asarray(lP['absCoef'])
+            layer.progressAbsCoef = True
+        self.progressProfileLoaded = True
+        return
+
+    def processTransmission(self, height, direction='down'):
+        if not self.progressProfileLoaded:
+            self.loadProfile()
+        surfaceSpectrum = pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature)
+        for layer in self.atmosphere:
+            if layer.meanHeight < height:
+                surfaceSpectrum = layer.transmission(surfaceSpectrum)
+                print('maxHeight: %s, processed %s, layerMeanHeight: %s' % (height / 100000, layer.name, layer.meanHeight))
+        plt.plot(self.initialLayer.xAxis, smooth(surfaceSpectrum, 50), linewidth=.5)
+        plt.plot(self.initialLayer.xAxis,
+                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature), linewidth=.5)
+        plt.plot(self.initialLayer.xAxis,
+                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, 280), linewidth=.5)
+        plt.plot(self.initialLayer.xAxis,
+                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, 260), linewidth=.5)
+        plt.plot(self.initialLayer.xAxis,
+                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, 240), linewidth=.5)
         plt.show()
+
 
     @property
     def yAxis(self):

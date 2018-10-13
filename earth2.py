@@ -11,10 +11,10 @@ meso1 = 51000 * 100
 meso2 = 71000 * 100
 mesopause = 80000 * 100
 maxHeight = 90000 * 100
-profileName = 'earth123'
+profileName = 'earth345'
 
 
-earth = pyrad.Planet(profileName, 1013.25, 300, maxHeight, rangeMin=500, rangeMax=900, initialThickness=initialThickness)
+earth = pyrad.Planet(profileName, 1013.25, 300, maxHeight, rangeMin=00, rangeMax=2000, initialThickness=initialThickness)
 
 earth.addLapseRate('troposphere dry LR', 0, earth.surfaceTemperature, tropopause, 216, earth.surfacePressure)
 earth.addLapseRate('tropopause', tropopause, earth.temperatureAtHeight(tropopause), strat1, 216, earth.pressureAtHeight(tropopause))
@@ -29,7 +29,7 @@ co2 = earth.addMolecule('co2', ppm=350)
 h2o = earth.addMolecule('h2o', ppm=20000)
 n2 = earth.addMolecule('n2', percentage=76.9)
 o2 = earth.addMolecule('o2', percentage=19.9)
-#o3 = earth.addMolecule('o3', ppb=0)
+o3 = earth.addMoleculeo3('o3', ppb=0)
 # ar = earth.addMolecule('ar', percentage=.9)
 
 # earth.addCompositionRate('co2 troposphere', 0, co2.concentration, 11000, -.000000001, co2)
@@ -53,31 +53,9 @@ ozCP0 = 3000 * 100
 ozCP1 = 16000 * 100
 ozCP2 = 32000 * 100
 ozCP3 = 60000 * 100
-#earth.addCompositionRate('troposphere ozone', ozCP0, 30E-9, ozCP1, 60E-9, o3)
-#earth.addCompositionRate('tropopause ozone', ozCP1, earth.compositionAtHeight(ozCP1, o3), ozCP2, 5E-6, o3)
-#earth.addCompositionRate('upper strat ozone', ozCP2, earth.compositionAtHeight(ozCP2, o3), ozCP3, 0, o3)
-#earth.addCompositionRate('strat on up ozone', ozCP3, earth.compositionAtHeight(ozCP3, o3), top, 0, o3)
+earth.addCompositionRate('troposphere ozone', ozCP0, 30E-9, ozCP1, 60E-9, o3)
+earth.addCompositionRate('tropopause ozone', ozCP1, earth.compositionAtHeight(ozCP1, o3), ozCP2, 5E-6, o3)
+earth.addCompositionRate('upper strat ozone', ozCP2, earth.compositionAtHeight(ozCP2, o3), ozCP3, 0, o3)
+earth.addCompositionRate('strat on up ozone', ozCP3, earth.compositionAtHeight(ozCP3, o3), top, 0, o3)
 
 earth.processTransmission(90E5)
-
-#plt.plot(xAxis, yAxis)
-#plt.show()
-
-
-
-
-"""
-height = 0
-nextLayerThickness = initialThickness
-initalMass = earth.densityAtHeight(height) * initialThickness / 100
-while height < 11000:
-    previousLayer = earth.atmosphere[-1]
-    newHeight = previousLayer.height + previousLayer.depth
-    newTemp = earth.temperatureAtHeight(newHeight)
-    newDensity = earth.densityAtHeight(newHeight)
-    newPressure = earth.pressureAtHeight(newHeight)
-    newDepth = initalMass / newDensity
-    earth.atmosphere.addLayer(nextLayerThickness, earth.temperatureAtHeight(height))
-
-
-"""
