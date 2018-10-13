@@ -29,7 +29,8 @@ co2 = earth.addMolecule('co2', ppm=350)
 h2o = earth.addMolecule('h2o', ppm=20000)
 n2 = earth.addMolecule('n2', percentage=76.9)
 o2 = earth.addMolecule('o2', percentage=19.9)
-o3 = earth.addMoleculeo3('o3', ppb=0)
+o3 = earth.addMolecule('o3', ppb=0)
+ch4 = earth.addMolecule('ch4', ppm=1.5)
 # ar = earth.addMolecule('ar', percentage=.9)
 
 # earth.addCompositionRate('co2 troposphere', 0, co2.concentration, 11000, -.000000001, co2)
@@ -56,6 +57,11 @@ ozCP3 = 60000 * 100
 earth.addCompositionRate('troposphere ozone', ozCP0, 30E-9, ozCP1, 60E-9, o3)
 earth.addCompositionRate('tropopause ozone', ozCP1, earth.compositionAtHeight(ozCP1, o3), ozCP2, 5E-6, o3)
 earth.addCompositionRate('upper strat ozone', ozCP2, earth.compositionAtHeight(ozCP2, o3), ozCP3, 0, o3)
-earth.addCompositionRate('strat on up ozone', ozCP3, earth.compositionAtHeight(ozCP3, o3), top, 0, o3)
+earth.addCompositionRate('strat on up ozone', ozCP3, earth.compositionAtHeight(ozCP3, o3), maxHeight, 0, o3)
+
+#ch4 rules
+earth.addCompositionRate('troposphere methane', 0, ch4.concentration, strat1, ch4.concentration, ch4)
+earth.addCompositionRate('taper ch4 strat', strat1, ch4.concentration, stratopause, 0, ch4)
+earth.addCompositionRate('ch4 0 to max height', stratopause, 0, maxHeight, 0, ch4)
 
 earth.processTransmission(90E5)
