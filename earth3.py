@@ -11,10 +11,10 @@ meso1 = 51000 * 100
 meso2 = 71000 * 100
 mesopause = 80000 * 100
 maxHeight = 90000 * 100
-profileName = 'earth345'
+profileName = 'earth678'
 
 
-earth = pyrad.Planet(profileName, 1013.25, 288, maxHeight, rangeMin=00, rangeMax=2000, initialThickness=initialThickness)
+earth = pyrad.Planet(profileName, 1013.25, 300, maxHeight, rangeMin=00, rangeMax=2000, initialThickness=initialThickness)
 
 earth.addLapseRate('troposphere dry LR', 0, earth.surfaceTemperature, tropopause, 216, earth.surfacePressure)
 earth.addLapseRate('tropopause', tropopause, earth.temperatureAtHeight(tropopause), strat1, 216, earth.pressureAtHeight(tropopause))

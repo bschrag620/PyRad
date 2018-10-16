@@ -2,7 +2,7 @@ import os
 import sys
 import urllib.request as urlrequest
 import urllib.error as urlexception
-import datetime
+from datetime import datetime
 import numpy as np
 
 
@@ -13,10 +13,46 @@ curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
 profileDir = '/%s/profiles' % dataDir
 debuggerFilePath = '%s/logger.txt' % cwd
-now = datetime.datetime.now()
+now = datetime.now()
 debuggerFile = open(debuggerFilePath, 'wb')
 debuggerFile.write(bytes('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"), 'utf-8'))
 debuggerFile.close()
+
+
+class Settings:
+    def __init__(self, setting='mid'):
+        self.setting = setting
+
+    @property
+    def baseRes(self):
+        if self.setting == 'low':
+            return .1
+        elif self.setting == 'mid':
+            return .01
+        elif self.setting == 'hi':
+            return .01
+
+    @property
+    def lineIntensityCutoff(self):
+        if self.setting == 'low':
+            return 1E-30
+        elif self.setting == 'mid':
+            return 1E-20
+        elif self.setting == 'hi':
+            return 0.0
+
+    @property
+    def smoothing(self):
+        if self.setting == 'low':
+            return 1
+        elif self.setting == 'mid':
+            return 50
+        elif self.setting == 'hi':
+            return 100
+
+
+settings = Settings('mid')
+
 
 
 def magentaText(text):
@@ -112,28 +148,71 @@ def writePlanetProfile(name, layer):
                ','.join(map(str, layer.absCoef.tolist()))))
     openFile.write(text.encode('utf-8'))
     openFile.close()
-    print('absCoef written to profiles/%s.pyr' % layer.name)
+    print('\n\tprofile written to %s.pyr' % layer.name)
     return
 
 
-def checkPlanetProfile(name, length):
+def getProfileList():
+    fileList = os.listdir(cwd)
+    profileFiles = []
+    for file in profileFiles:
+        if '.pyr' in file:
+            profileFiles.append(file)
+    return fileList
+
+
+def checkPlanetProfile(name):
     folderPath = '%s/%s' % (profileDir, name)
     if not os.path.isdir(folderPath):
         os.mkdir(folderPath)
         return False
     else:
-        for i in range(1, length + 1):
-            fileName = 'Layer %s:%s' % (i, length)
-            filePath = '%s/%s.pyr' % (folderPath, fileName)
-            if not os.path.isfile(filePath):
-                print('%s missing' % fileName)
-                return False
-    return True
+        fileName = 'completeProfile.pyr'
+        filePath = '%s/%s' % (folderPath, fileName)
+        if os.path.isfile(filePath):
+            return True
+        else:
+            return False
 
 
 def profileLength(name):
     folderPath = '%s/%s' % (profileDir, name)
-    return len(os.listdir(folderPath))
+    fileList = os.listdir(folderPath)
+    count = 0
+    for file in fileList:
+        if 'Layer' in file:
+            count += 1
+    return count
+
+
+def profileWriteProgress(name, completed, expected):
+    folderPath = '%s/%s' % (profileDir, name)
+    fileName = 'profileProgress.pyr'
+    filePath = '%s/%s' % (folderPath, fileName)
+    openFile = open(filePath, 'wb')
+    text = '# profile progess for %s\n' \
+           'completed: %s\n' \
+           'expected: %s' % (name, completed, expected)
+    openFile.write(text.encode('utf-8'))
+    openFile.close()
+    return
+
+
+def profileProgress(name):
+    folderPath = '%s/%s' % (profileDir, name)
+    fileName = 'profileProgress'
+    filePath = '%s/%s.pyr' % (folderPath, fileName)
+    if not os.path.isfile(filePath):
+        return False
+    lines = openReturnLines(filePath)
+    for line in lines:
+        if line[0] == '#':
+            pass
+        else:
+            cells = line.split(':')
+            if cells[0] == 'completed':
+                return int(cells[1])
+
 
 def emptyProfileDirectory(name):
     folderPath = '%s/%s' % (profileDir, name)
@@ -144,11 +223,40 @@ def emptyProfileDirectory(name):
     os.removedirs(folderPath)
     return
 
+
+def profileComplete(name):
+    folderPath = '%s/%s' % (profileDir, name)
+    fileName = 'profileComplete'
+    filePath = '%s/%s.pyr' % (folderPath, fileName)
+    if os.path.isfile(filePath):
+        return True
+    return False
+
+
+def profileWriteComplete(name, completed, expected):
+    folderPath = '%s/%s' % (profileDir, name)
+    fileName = 'profileComplete'
+    filePath = '%s/%s.pyr' % (folderPath, fileName)
+    time = datetime.now()
+    text = '# profile for %s completed on %s\n' \
+           '# PyRad v%s\n' \
+           'expected: %s\n' \
+           'completed: %s' % (name, time.strftime("%Y-%m-%d %H:%M:%S"), VERSION, expected, completed)
+    openFile = open(filePath, 'wb')
+    openFile.write(text.encode('utf-8'))
+    openFile.close()
+    fileName = 'profileProgress'
+    filePath = '%s/%s.pyr' % (folderPath, fileName)
+    os.remove(filePath)
+    return
+
+
 def readPlanetProfile(name, layerNumber, length):
     folderPath = '%s/%s' % (profileDir, name)
     fileName = 'Layer %s:%s' % (layerNumber, length)
     filePath = '%s/%s.pyr' % (folderPath, fileName)
     lines = openReturnLines(filePath)
+    print('Reading profile from %s...' % fileName, end='\r', flush=True)
     layerDict = {}
     for line in lines:
         keyValue = line.split(':')
