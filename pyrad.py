@@ -50,7 +50,6 @@ def createCustomPlanet(name):
     return planet
 
 
-
 def yesOrNo(promptText):
     validInput = False
     while not validInput:
@@ -851,6 +850,7 @@ class Planet:
         self.mass = 0
         self.gravity = gravity
         self.maxHeight = maxHeight * 100000
+        print('maxHeight in cm: %s' % self.maxHeight)
         self.molarMass = molarMass
         self.radius = 0
         self.surfacePressure = pressure
@@ -953,16 +953,16 @@ class Planet:
                     self.depthList.append(newDepth)
                     print('%s: K: %s, mBar: %s, baseHeight: %skm, depth: %skm, mass: %skg' % (
                         'Layer %s' % len(self.heightList), int(layer.T), round(layer.P, 2),
-                        round(newHeight / 100000, 2), round(newDepth / 100000, 2), round(layer.mass, 2)))
+                        round(newHeight, 2), round(newDepth, 2), round(layer.mass, 2)))
                     break
                 else:
                     self.heightList.append(newHeight)
                     self.depthList.append(newDepth)
                     layer.height = newHeight
                     layer.depth = newDepth
-            if self.heightList[-1] + .5 * self.depthList[-1] > self.maxHeight:
+            '''if self.heightList[-1] + .5 * self.depthList[-1] > self.maxHeight:
                 self.heightList.pop()
-                self.depthList.pop()
+                self.depthList.pop()'''
             print('Total # of layers: %s' % len(self.heightList))
             print('Total # of absorption lines per layer: %s' % len(totalLineList(layer)))
             if verify:
@@ -1041,11 +1041,11 @@ class Planet:
             self.loadProfile()
         height = height * 100000
         surfaceSpectrum = pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature)
-        print('Processing atmosphere spectrum from %s looking %s...' % (height / 100000, direction))
+        print('Processing atmosphere spectrum from %skm looking %s...' % (height / 100000, direction))
         for layer in self.atmosphere:
             if layer.meanHeight < height:
                 surfaceSpectrum = layer.transmission(surfaceSpectrum)
-                print('Processing %s...%s, %s' % (layer.name, layer.meanHeight, layer.height), end='\n', flush=True)
+                print('Processing %s...%s, %s, %s' % (layer.name, round(layer.height / 100000, 4), round(layer.meanHeight / 100000, 4), round(layer.depth / 100000, 4)), end='\n', flush=True)
         print('')
         print('total power of spectrum: %sWm-2' % int((integrateSpectrum(surfaceSpectrum) / 5.67E-8)**.25))
         plt.plot(self.initialLayer.xAxis, smooth(surfaceSpectrum, 50), linewidth=.5)
@@ -1246,6 +1246,41 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
             handles.append(fig)
             alpha = .5
             linewidth = 1
+    legend = plt.legend(handles=handles, frameon=False)
+    text = legend.get_texts()
+    plt.setp(text, color='w')
+    plt.show()
+
+
+def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=[300, 270, 240, 210]):
+    linewidth = .5
+    alpha = .8
+    plt.figure(figsize=(10, 6), dpi=80)
+    plt.subplot(111, facecolor='xkcd:dark grey')
+    plt.margins(0.01)
+    plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
+    plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
+    handles = []
+    heightFlag = True
+    if not height:
+        heightFlag = False
+    for planet, color in zip(planets, COLOR_LIST[1:]):
+        if not heightFlag:
+            height = planet.maxHeight
+        print('plot height is: %s' % height)
+        xAxis = planet.xAxis
+        yAxis = planet.processTransmission(height, direction)
+        fig, = plt.plot(xAxis, smooth(yAxis, 50), linewidth=linewidth,
+                        alpha=alpha, color=color,
+                        label='%s : %sWm-2' % (planet.name, round(integrateSpectrum(yAxis, pi), 2)))
+        handles.append(fig)
+    for temperature in temperatureList:
+        yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
+        fig, = plt.plot(xAxis, yAxis, linewidth=.75, color='grey',
+                        linestyle=':', label='%sK : %sWm-2' %
+                                             (temperature,
+                                              round(integrateSpectrum(yAxis, pi), 2)))
+        handles.append(fig)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')

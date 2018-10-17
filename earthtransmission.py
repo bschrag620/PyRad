@@ -65,7 +65,7 @@ for height in yAxis:
 plt.plot(xAxis, yAxis)
 plt.show()'''
 
-earth.processTransmission(90E5)
+earth.processTransmission(90)
 
 
 """
