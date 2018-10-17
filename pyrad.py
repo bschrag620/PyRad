@@ -954,7 +954,6 @@ class Planet:
                     print('%s: K: %s, mBar: %s, baseHeight: %skm, depth: %skm, mass: %skg' % (
                         'Layer %s' % len(self.heightList), int(layer.T), round(layer.P, 2),
                         round(newHeight / 100000, 2), round(newDepth / 100000, 2), round(layer.mass, 2)))
-                    input('')
                     break
                 else:
                     self.heightList.append(newHeight)
