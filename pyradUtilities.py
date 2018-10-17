@@ -20,8 +20,11 @@ debuggerFile.close()
 
 
 class Settings:
-    def __init__(self, setting='mid'):
+    def __init__(self, setting):
         self.setting = setting
+
+    def changeSetting(self, value):
+        self.setting = value
 
     @property
     def baseRes(self):
@@ -35,9 +38,9 @@ class Settings:
     @property
     def lineIntensityCutoff(self):
         if self.setting == 'low':
-            return 1E-30
+            return 1E-22
         elif self.setting == 'mid':
-            return 1E-20
+            return 1E-25
         elif self.setting == 'hi':
             return 0.0
 
@@ -49,10 +52,6 @@ class Settings:
             return 50
         elif self.setting == 'hi':
             return 100
-
-
-settings = Settings('mid')
-
 
 
 def magentaText(text):
@@ -148,7 +147,7 @@ def writePlanetProfile(name, layer):
                ','.join(map(str, layer.absCoef.tolist()))))
     openFile.write(text.encode('utf-8'))
     openFile.close()
-    print('\n\tprofile written to %s.pyr' % layer.name)
+    print('\n\t\t\tprofile written to %s.pyr' % layer.name)
     return
 
 
@@ -173,6 +172,55 @@ def checkPlanetProfile(name):
             return True
         else:
             return False
+
+
+def parseCustomProfile(name):
+    filePath = '%s/%s.pyr' % (cwd, name)
+    lines = openReturnLines(filePath)
+    params = {'compositionRules': [],
+              'temperatureRules': [],
+              'molecules': [],
+              'name': name}
+    for line in lines:
+        if line[0] == '#' or line == '':
+                pass
+        elif 'composition' in line.lower() or 'lapse' in line.lower():
+            tempDict = {}
+            values = line.split(':')[1].split(',')
+            tempDict['name'] = values[0]
+            tempDict['finalHeight'] = float(values[1])
+            tempDict['finalValue'] = float(values[2])
+            if len(values) > 3:
+                tempDict['moleculeName'] = values[3].strip()
+            if 'composition' in line.lower():
+                params['compositionRules'].append(tempDict)
+            elif 'lapse' in line.lower():
+                params['temperatureRules'].append(tempDict)
+        elif 'surface' in line.lower():
+            tempDict = {}
+            values = line.split(':')[1].split(',')
+            tempDict['surfacePressure'] = float(values[0])
+            tempDict['surfaceTemperature'] = int(values[1])
+            tempDict['maxHeight'] = float(values[2])
+            tempDict['rangeMin'] = int(values[3])
+            tempDict['rangeMax'] = int(values[4])
+            tempDict['initialDepth'] = float(values[5])
+            tempDict['gravity'] = float(values[6])
+            params['initialValues'] = tempDict
+        elif 'setting' in line.lower():
+            value = line.split(':')[1].lower()
+            params['setting'] = value.lower().strip()
+        elif 'molecule' in line.lower():
+            values = line.split(':')[1].split(',')
+            try:
+                concentration = float(values[1])
+            except ValueError:
+                print('invalid concentration %s in %s' % (values[1], filePath))
+                exit()
+            tempDict = {'name': values[0].lower().strip(),
+                        'concentration': concentration}
+            params['molecules'].append(tempDict)
+    return params
 
 
 def profileLength(name):
@@ -262,16 +310,18 @@ def readPlanetProfile(name, layerNumber, length):
         keyValue = line.split(':')
         if line[0] == '#':
             pass
-        elif keyValue[0] == 'name':
+        elif keyValue[0].strip() == 'name':
             layerDict[keyValue[0]] = keyValue[1]
-        elif keyValue[0] == 'absCoef':
+        elif keyValue[0].strip() == 'absCoef':
             absList = keyValue[1].split(',')
             absCoefList = []
             for value in absList:
                 absCoefList.append(float(value))
             layerDict[keyValue[0]] = absCoefList
-        elif keyValue[0] == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
+        elif keyValue[0].strip() == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
             layerDict[keyValue[0]] = int(keyValue[1])
+        elif keyValue[0].strip() == 'height':
+            layerDict[keyValue[0]] = float(keyValue[1])
         else:
             layerDict[keyValue[0]] = float(keyValue[1])
     return layerDict

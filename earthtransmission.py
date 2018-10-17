@@ -30,7 +30,8 @@ co2 = earth.addMolecule('co2', ppm=350)
 h2o = earth.addMolecule('h2o', ppm=20000)
 n2 = earth.addMolecule('n2', percentage=76.9)
 o2 = earth.addMolecule('o2', percentage=19.9)
-#o3 = earth.addMolecule('o3', ppb=0)
+o3 = earth.addMolecule('o3', ppb=0)
+ch4 = earth.addMolecule('ch4', ppb=1800)
 
 wvCP1 = 2.5
 wvCP2 = 8
