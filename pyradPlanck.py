@@ -1,5 +1,5 @@
 import numpy as np
-np.seterr(divide='ignore', invalid='ignore')
+np.seterr(divide='ignore', invalid='ignore', over='ignore')
 
 k = 1.38064852E-23
 c = 299792458.0

@@ -16,6 +16,7 @@ R = 8.3144598
 t0 = 296
 p0 = 1013.25
 avo = 6.022140857E23
+sb = 5.67E-8
 
 settings = utils.Settings('low')
 
@@ -850,7 +851,6 @@ class Planet:
         self.mass = 0
         self.gravity = gravity
         self.maxHeight = maxHeight * 100000
-        print('maxHeight in cm: %s' % self.maxHeight)
         self.molarMass = molarMass
         self.radius = 0
         self.surfacePressure = pressure
@@ -987,11 +987,11 @@ class Planet:
                 acceptSetup = True
         return
 
-    def processLayers(self):
+    def processLayers(self, verify=True):
         if utils.profileProgress(self.name):
             self.sliceAtm(verify=False)
         if not self.heightList:
-            self.sliceAtm()
+            self.sliceAtm(verify=verify)
         layer = self.initialLayer
         startPoint = utils.profileProgress(self.name)
         i = startPoint + 1
@@ -1014,13 +1014,14 @@ class Planet:
         utils.profileWriteComplete(self.name, i, len(self.heightList))
         return
 
-    def loadProfile(self):
+    def loadProfile(self, verify=True):
         if utils.profileComplete(self.name):
             fileLength = utils.profileLength(self.name)
-            if not yesOrNo('%s layers found for profile %s. Load profile (y/n):' % (fileLength, self.name)):
-                if yesOrNo('Are you sure, selecting yes will delete all previous profile data (y/n): '):
-                    utils.emptyProfileDirectory(self.name)
-                    self.processLayers()
+            if verify:
+                if not yesOrNo('%s layers found for profile %s. Load profile (y/n):' % (fileLength, self.name)):
+                    if yesOrNo('Are you sure, selecting yes will delete all previous profile data (y/n): '):
+                        utils.emptyProfileDirectory(self.name)
+                        self.processLayers()
         else:
             self.processLayers()
         fileLength = utils.profileLength(self.name)
@@ -1036,28 +1037,25 @@ class Planet:
         self.progressProfileLoaded = True
         return
 
-    def processTransmission(self, height, direction='down'):
+    def processTransmission(self, height, direction='down', verify=True):
         if not self.progressProfileLoaded:
-            self.loadProfile()
+            self.loadProfile(verify=verify)
         height = height * 100000
-        surfaceSpectrum = pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature)
         print('Processing atmosphere spectrum from %skm looking %s...' % (height / 100000, direction))
-        for layer in self.atmosphere:
-            if layer.meanHeight < height:
-                surfaceSpectrum = layer.transmission(surfaceSpectrum)
-                print('Processing %s...%s, %s, %s' % (layer.name, round(layer.height / 100000, 4), round(layer.meanHeight / 100000, 4), round(layer.depth / 100000, 4)), end='\n', flush=True)
+        if direction == 'down':
+            surfaceSpectrum = pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature)
+            for layer in self.atmosphere:
+                if layer.meanHeight < height:
+                    surfaceSpectrum = layer.transmission(surfaceSpectrum)
+                    print('Processing %s...' % (layer.name), end='\r', flush=True)
+        elif direction == 'up':
+            surfaceSpectrum = pyradPlanck.planckWavenumber(self.initialLayer.xAxis, 3)
+            for layer in reversed(self.atmosphere):
+                if layer.meanHeight > height:
+                    surfaceSpectrum = layer.transmission(surfaceSpectrum)
+                    print('Processing %s...\n' % (layer.name), layer.T, end='\r', flush=True)
         print('')
         print('total power of spectrum: %sWm-2' % int((integrateSpectrum(surfaceSpectrum) / 5.67E-8)**.25))
-        plt.plot(self.initialLayer.xAxis, smooth(surfaceSpectrum, 50), linewidth=.5)
-        plt.plot(self.initialLayer.xAxis,
-                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature + 5), linewidth=.5)
-        plt.plot(self.initialLayer.xAxis,
-                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature - 20), linewidth=.5)
-        plt.plot(self.initialLayer.xAxis,
-                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature - 30), linewidth=.5)
-        plt.plot(self.initialLayer.xAxis,
-                 pyradPlanck.planckWavenumber(self.initialLayer.xAxis, self.surfaceTemperature - 40), linewidth=.5)
-        plt.show()
         return surfaceSpectrum
 
     @property
@@ -1079,6 +1077,10 @@ class Planet:
     @property
     def transmission(self):
         return self.processTransmission(self.maxHeight)
+
+
+def stefanB(power):
+    return (power / sb) ^ .25
 
 
 class AtmosphereRule:
@@ -1252,43 +1254,40 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
     plt.show()
 
 
-def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=[300, 270, 240, 210]):
+def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=[300, 280, 250, 210, 170], verify=True, integrateRange=[]):
     linewidth = .5
-    alpha = .8
+    alpha = .7
     plt.figure(figsize=(10, 6), dpi=80)
-    plt.subplot(111, facecolor='xkcd:dark grey')
+    plt.subplot(111, facecolor='xkcd:almost black')
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
     handles = []
     heightFlag = True
-    if not height:
+    if height is None:
         heightFlag = False
     for planet, color in zip(planets, COLOR_LIST[1:]):
         if not heightFlag:
-            height = planet.maxHeight
-        print('plot height is: %s' % height)
+            height = planet.maxHeight / 100000
         xAxis = planet.xAxis
-        yAxis = planet.processTransmission(height, direction)
-        fig, = plt.plot(xAxis, smooth(yAxis, 50), linewidth=linewidth,
+        yAxis = planet.processTransmission(height, direction=direction, verify=verify)
+        fig, = plt.plot(xAxis, smooth(yAxis, 75), linewidth=linewidth,
                         alpha=alpha, color=color,
                         label='%s : %sWm-2' % (planet.name, round(integrateSpectrum(yAxis, pi), 2)))
         handles.append(fig)
+    color = 1
     for temperature in temperatureList:
         yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
-        fig, = plt.plot(xAxis, yAxis, linewidth=.75, color='grey',
+        fig, = plt.plot(xAxis, yAxis, linewidth=.75, color=(color, color, color), alpha=alpha,
                         linestyle=':', label='%sK : %sWm-2' %
                                              (temperature,
                                               round(integrateSpectrum(yAxis, pi), 2)))
         handles.append(fig)
+        color -= .15
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color='w')
     plt.show()
-
-
-def cacheCurves():
-    ls.writeCacheToFile()
 
 
 HITRAN_GLOBAL_ISO = {1: {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 129},

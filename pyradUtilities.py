@@ -38,9 +38,9 @@ class Settings:
     @property
     def lineIntensityCutoff(self):
         if self.setting == 'low':
-            return 1E-22
+            return 1E-21
         elif self.setting == 'mid':
-            return 1E-25
+            return 1E-28
         elif self.setting == 'hi':
             return 0.0
 
@@ -187,7 +187,7 @@ def parseCustomProfile(name):
         elif 'composition' in line.lower() or 'lapse' in line.lower():
             tempDict = {}
             values = line.split(':')[1].split(',')
-            tempDict['name'] = values[0]
+            tempDict['name'] = values[0].strip()
             tempDict['finalHeight'] = float(values[1])
             tempDict['finalValue'] = float(values[2])
             if len(values) > 3:
@@ -304,14 +304,14 @@ def readPlanetProfile(name, layerNumber, length):
     fileName = 'Layer %s:%s' % (layerNumber, length)
     filePath = '%s/%s.pyr' % (folderPath, fileName)
     lines = openReturnLines(filePath)
-    print('Reading profile from %s...' % fileName, end='\r', flush=True)
+    print('Reading profile from %s...                                ' % fileName, end='\r', flush=True)
     layerDict = {}
     for line in lines:
         keyValue = line.split(':')
         if line[0] == '#':
             pass
         elif keyValue[0].strip() == 'name':
-            layerDict[keyValue[0]] = keyValue[1]
+            layerDict[keyValue[0]] = keyValue[1].strip()
         elif keyValue[0].strip() == 'absCoef':
             absList = keyValue[1].split(',')
             absCoefList = []
