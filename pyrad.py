@@ -20,6 +20,18 @@ sb = 5.67E-8
 
 settings = utils.Settings('low')
 
+
+def reduceRes(array, lumpTo=1):
+    n = int(lumpTo / settings.baseRes)
+    length = int(len(array) * settings.baseRes)
+    newArray = np.zeros(length)
+    for m in range(0, length):
+        for i in range(0, n):
+            newArray[m] += array[m * n + i] / n
+    return newArray
+
+
+
 def createCustomPlanet(name):
 
     initialParameters = utils.parseCustomProfile(name)
@@ -1270,10 +1282,15 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=[
         if not heightFlag:
             height = planet.maxHeight / 100000
         xAxis = planet.xAxis
+        #xAxis = np.linspace(planet.rangeMin, planet.rangeMax, planet.rangeMax - planet.rangeMin)
         yAxis = planet.processTransmission(height, direction=direction, verify=verify)
+        #yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=verify))
         fig, = plt.plot(xAxis, smooth(yAxis, 75), linewidth=linewidth,
                         alpha=alpha, color=color,
                         label='%s : %sWm-2' % (planet.name, round(integrateSpectrum(yAxis, pi), 2)))
+        #fig, = plt.plot(xAxis, yAxis, linewidth=linewidth,
+        #                alpha=alpha, color=color,
+        #                label='%s : %sWm-2' % (planet.name, round(integrateSpectrum(yAxis, pi), 2)))
         handles.append(fig)
     color = 1
     for temperature in temperatureList:

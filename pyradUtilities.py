@@ -22,14 +22,18 @@ debuggerFile.close()
 class Settings:
     def __init__(self, setting):
         self.setting = setting
+        self.reduceRes = True
 
     def changeSetting(self, value):
         self.setting = value
 
+    def changeResReduce(self, bool):
+        self.reduceRes = bool
+
     @property
     def baseRes(self):
         if self.setting == 'low':
-            return .1
+            return .01
         elif self.setting == 'mid':
             return .01
         elif self.setting == 'hi':
@@ -117,7 +121,8 @@ def setupDir():
 
 def openReturnLines(fullPath):
     if not os.path.isfile(fullPath):
-        return False
+        print('file not found %s' % fullPath)
+        exit()
     openFile = open(fullPath)
     lineList = openFile.readlines()
     openFile.close()
@@ -225,12 +230,14 @@ def parseCustomProfile(name):
 
 def profileLength(name):
     folderPath = '%s/%s' % (profileDir, name)
-    fileList = os.listdir(folderPath)
-    count = 0
-    for file in fileList:
-        if 'Layer' in file:
-            count += 1
-    return count
+    filePath = '%s/profileComplete.pyr' % folderPath
+    lines = openReturnLines(filePath)
+    for line in lines:
+        if line[0] == '#':
+            pass
+        else:
+            values = line.split(':')
+            return int(values[1])
 
 
 def profileWriteProgress(name, completed, expected):

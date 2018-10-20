@@ -10,4 +10,4 @@ for height in yAxis:
 plt.plot(xAxis, yAxis)
 plt.show()'''
 planet2 = pyrad.createCustomPlanet('mars simple')
-pyrad.plotPlanetSpectrum([planet], verify=False)
+pyrad.plotPlanetSpectrum([planet], verify=True)
