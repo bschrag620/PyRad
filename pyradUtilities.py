@@ -159,10 +159,11 @@ def writePlanetProfile(name, layer):
 def getProfileList():
     fileList = os.listdir(cwd)
     profileFiles = []
-    for file in profileFiles:
+    for file in fileList:
         if '.pyr' in file:
             profileFiles.append(file)
-    return fileList
+            print(file)
+    return profileFiles
 
 
 def checkPlanetProfile(name):
@@ -245,7 +246,7 @@ def profileWriteProgress(name, completed, expected):
     fileName = 'profileProgress.pyr'
     filePath = '%s/%s' % (folderPath, fileName)
     openFile = open(filePath, 'wb')
-    text = '# profile progess for %s\n' \
+    text = '# profile progress for %s\n' \
            'completed: %s\n' \
            'expected: %s' % (name, completed, expected)
     openFile.write(text.encode('utf-8'))
@@ -270,7 +271,7 @@ def profileProgress(name):
 
 
 def emptyProfileDirectory(name):
-    folderPath = '%s/%s' % (profileDir, name)
+    folderPath = name
     fileList = os.listdir(folderPath)
     for file in fileList:
         filePath = '%s/%s' % (folderPath, file)
