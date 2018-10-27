@@ -17,7 +17,7 @@ class Menu:
         self.menuParams = menuParams
 
     def displayMenu(self):
-        titleStr = '\t' + self.title
+        titleStr = '\t%s\tdetail: %s' % (self.title, pyradClasses.settings.setting)
         while len(titleStr) < 60:
             titleStr += ' '
         print('\n%s' % util.underlineCyan(titleStr))
@@ -30,6 +30,9 @@ class Menu:
         if 'Main' not in self.title:
             print(' %s   Previous menu' % util.magentaText('B)'))
             validEntry.append('b')
+        if 'settings' not in self.title:
+            print(' %s   Settings' % util.magentaText('S)'))
+            validEntry.append('s')
         print(' %s   Exit' % util.magentaText('X)'))
         validChoice = False
         while not validChoice:
@@ -37,8 +40,10 @@ class Menu:
             if userInput.lower() == 'x':
                 print('Goodbye')
                 exit(1)
-            elif userInput.lower() == 'b' and 'Main' not in self.title:
+            elif userInput.lower() == 'b' and 'main' not in self.title.lower():
                 self.previousMenu()
+            elif userInput.lower() == 's' and 'settings' not in self.title.lower():
+                settingsMenu(self)
             elif userInput in validEntry:
                 userChoice = self.entries[int(userInput) - 1]
                 if userChoice.nextFunction:
@@ -51,7 +56,7 @@ class Menu:
                 print('Invalid entry. Try again.')
 
     def displayMultiChoiceMenu(self):
-        titleStr = '\t' + self.title
+        titleStr = '\t%s\tdetail: %s' % (self.title, pyradClasses.settings.setting)
         while len(titleStr) < 60:
             titleStr += ' '
         print('\n%s' % util.underlineCyan(titleStr))
@@ -64,6 +69,9 @@ class Menu:
         if 'Main' not in self.title:
             print(' %s   Previous menu' % util.magentaText('B)'))
             validEntry.append('b')
+        if 'settings' not in self.title:
+            print(' %s   Settings' % util.magentaText('S)'))
+            validEntry.append('s')
         print(' %s   Exit' % util.magentaText('X)'))
         validChoice = False
         while not validChoice:
@@ -73,6 +81,8 @@ class Menu:
                 exit(1)
             elif userInput.lower() == 'b' and 'Main' not in self.title:
                 return
+            elif userInput.lower() == 's' and 'settings' not in self.title.lower():
+                settingsMenu(self)
             else:
                 inputs = userInput.split(',')
                 allValid = True
@@ -111,13 +121,22 @@ def createPlot(params):
 def plotPlanetSpectrum(values):
     pList = []
     for p in values['profiles']:
-        planet = pyradClasses.createCustomPlanet(p.name)
+        planet = pyradClasses.loadEmptyPlanet(p.name)
         pList.append(planet)
     if values['height'] == -2.71828:
         pyradClasses.plotPlanetSpectrum(pList, direction=values['direction'], verify=False)
     else:
         pyradClasses.plotPlanetSpectrum(pList, direction=values['direction'], height=values['height'], verify=False)
-    atmosphereTransferMenu()
+    chooseAtmTransferBuildProfile()
+
+
+def plotPlanetSpectrumComponents(values):
+    planet = pyradClasses.createCustomPlanet(values['profiles'].name)
+    if values['height'] == -2.71828:
+        pyradClasses.plotPlanetAndComponents(planet, direction=values['direction'], verify=False)
+    else:
+        pyradClasses.plotPlanetAndComponents(planet, direction=values['direction'], height=values['height'], verify=False)
+    chooseAtmTransferBuildProfile()
 
 
 def createLayer(atmosphere):
@@ -372,6 +391,15 @@ def inputHeight(values):
     return
 
 
+def inputHeightComponents(values):
+    text = 'Enter the height to view transmission from.\t\t\t'
+    height = receiveInput('%s\n'
+                          'Units should be in %s. If no value entered, maximum atm height will be used: ' % (util.underlineCyan(text), util.limeText('km')), validNumber, default=-2.71828)
+    values['height'] = height
+    plotPlanetSpectrumComponents(values)
+    return
+
+
 def menuChooseLayerToEdit(empty=None):
     entryList = []
     for layer in genericAtmosphere:
@@ -509,27 +537,92 @@ def chooseDirection(profileList):
                                                                                 'direction': 'up'})
     lookDownEntry = Entry('Looking down', nextFunction=inputHeight, functionParams={'profiles': profileList,
                                                                                 'direction': 'down'})
-    menuChooseDirection = Menu('Choose direction to look', [lookUpEntry, lookDownEntry], previousMenu=atmosphereTransferMenu)
+    menuChooseDirection = Menu('Choose direction to look', [lookUpEntry, lookDownEntry], previousMenu=plotAtmTransferMenu)
     menuChooseDirection.displayMenu()
     return
 
 
-def atmosphereTransferMenu(param=None):
+def chooseDirectionComponents(profile):
+    lookUpEntry = Entry('Looking up', nextFunction=inputHeightComponents, functionParams={'profiles': profile,
+                                                                                'direction': 'up'})
+    lookDownEntry = Entry('Looking down', nextFunction=inputHeightComponents, functionParams={'profiles': profile,
+                                                                                    'direction': 'down'})
+    menuChooseDirection = Menu('Choose direction to look', [lookUpEntry, lookDownEntry],
+                               previousMenu=plotProfileComponentsMenu)
+    menuChooseDirection.displayMenu()
+    return
+
+
+def plotProfileComponentsMenu(param=None):
+    entryList = []
     profileList = util.getProfileList()
+    for profile in profileList:
+        if util.profileComplete('%s %s' % (profile, pyradClasses.settings.setting)) and \
+                util.molSpecProfile(profile, pyradClasses.settings.setting):
+            entryList.append(Entry('%s' % profile[:-4], nextFunction=chooseDirectionComponents, functionParams=profile))
+    menuAtmTransfer = Menu('Choose atmosphere', entryList, previousMenu=chooseAtmTransferBuildProfile)
+    menuAtmTransfer.displayMenu()
+    return
+
+
+def buildProfile(profileList):
+    for profile in profileList:
+        print('Building %s on setting %s' % (profile.name, pyradClasses.settings.setting))
+        planet = pyradClasses.createCustomPlanet(profile.name)
+        moleculeSpecific = pyradClasses.yesOrNo("Store data by individual molecule? Doesn't require more time, "
+                                                "just hard drive space %s:" % util.limeText('(y/n)'))
+        overwrite = True
+        if util.profileComplete(planet.folderPath):
+            overwrite = pyradClasses.yesOrNo("Data for this profile and setting seems to exist.\n"
+                                             "Do you wish to overwrite it? %s" % util.limeText('(y/n)'))
+        if overwrite:
+            planet.processLayers(verify=False, moleculeSpecific=moleculeSpecific)
+    chooseAtmTransferBuildProfile()
+
+
+def buildProfilesMenu(param=None):
+    entryList = []
+    profileList = util.getProfileList()
+    for profile in profileList:
+        entryList.append(Entry('%s' % profile[:-4], nextFunction=buildProfile, functionParams=profile))
+    menuBuildProfile = Menu('Which profile(s) do you want to build', entryList, previousMenu=chooseAtmTransferBuildProfile)
+    menuBuildProfile.displayMultiChoiceMenu()
+    return
+
+
+def chooseAtmTransferBuildProfile(param=None):
+    plotProfilesEntry = Entry('Plot profile(s)', nextFunction=plotAtmTransferMenu)
+    plotProfileAndComponents = Entry('Plot single atm and components', nextFunction=plotProfileComponentsMenu)
+    buildProfilesEntry = Entry('Build profile(s)', nextFunction=buildProfilesMenu)
+    menuChooseProfileBuild = Menu('Plot or build profiles', [plotProfilesEntry, plotProfileAndComponents, buildProfilesEntry], previousMenu=menuMain)
+    menuChooseProfileBuild.displayMenu()
+    return
+
+
+def plotAtmTransferMenu(param=None):
+    profileList = util.getCompletedProfileList(pyradClasses.settings.setting)
     entryList = []
     for profile in profileList:
-        entryList.append(Entry('%s' % profile[:-4], nextFunction=chooseDirection, functionParams=profile))
+        entryList.append(Entry('%s' % profile, nextFunction=chooseDirection, functionParams=profile))
     menuAtmTransfer = Menu('Choose atmosphere', entryList, previousMenu=menuMain)
     menuAtmTransfer.displayMultiChoiceMenu()
     return
 
 
+def settingsMenu(previousMenu):
+    lowSetting = Entry('low (intensity > 1E-21)', nextFunction=pyradClasses.settings.changeSetting, functionParams='low')
+    midSetting = Entry('mid (intensity > 1E-28)', nextFunction=pyradClasses.settings.changeSetting, functionParams='mid')
+    hiSetting = Entry('hi (all absorption lines)', nextFunction=pyradClasses.settings.changeSetting, functionParams='hi')
+    menuSettings = Menu('Choose level of detail', [lowSetting, midSetting, hiSetting], previousMenu=menuMain)
+    return menuSettings
+
+
 def menuMain():
     gasCellEntry = Entry('Gas cell simulator', nextFunction=gasCellMenu)
-    atmosphereTransferEntry = Entry('Atmosphere transmission', nextFunction=atmosphereTransferMenu)
+    atmosphereTransferEntry = Entry('Atmosphere transmission', nextFunction=chooseAtmTransferBuildProfile)
     mainMenu = Menu('Main menu', [gasCellEntry, atmosphereTransferEntry])
-    mainMenu.displayMenu()
-    return
+    return mainMenu
+
 
 
 def duplicateObj(obj):
@@ -711,5 +804,6 @@ TEMPERATURE_UNITS = ['K', 'C', 'F']
 RANGE_UNITS = ['um', 'cm-1']
 COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc', 'concentration']
 
+menu = menuMain()
 while True:
-    menuMain()
+    menu = menu.displayMenu()

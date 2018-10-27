@@ -1,8 +1,6 @@
 # mars simple
 
-setting: hi
-
-surface: 6, 220, 100, 100, 1500, 200, 3.711
+surface: 6, 220, 100, 200, 3.711
 
 molecule: co2, .9532
 molecule: n2, .027

@@ -133,26 +133,37 @@ def openReturnLines(fullPath):
     return lineList
 
 
-def writePlanetProfile(name, layer):
+def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecific=False):
     folderPath = '%s/%s' % (profileDir, name)
     if not os.path.isdir(folderPath):
         os.mkdir(folderPath)
     filePath = '%s/%s.pyr' % (folderPath, layer.name)
+    now = datetime.now()
     openFile = open(filePath, 'wb')
-    text = ('depth: %s\n'
+    text = '# created by PyRad v%s on %s.\n' % (VERSION, now.strftime("%Y-%m-%d %H:%M:%S"))
+    openFile.write(text.encode('utf-8'))
+    text = ('time: %ssecs\n'
+            'depth: %s\n'
             'T: %s\n'
             'P: %s\n'
             'rangeMin: %s\n'
             'rangeMax: %s\n'
             'height: %s\n'
             'name: %s\n'
-            '##\t\tlayer absorption coefficient\t\t##\n'
-            'absCoef: %s'
-            % (layer.depth, int(layer.T), layer.P, layer.rangeMin, layer.rangeMax, layer.height, layer.name,
-               ','.join(map(str, layer.absCoef.tolist()))))
+            'molecule list: %s\n'
+            '# layer abs coef\n'
+            'layer absCoef: %s\n'
+            % (int(processingTime), layer.depth, int(layer.T), layer.P, layer.rangeMin, layer.rangeMax, layer.height,
+               layer.name, ','.join(moleculeList), ','.join(map(str, layer.absCoef.tolist()))))
     openFile.write(text.encode('utf-8'))
+    if moleculeSpecific:
+        for molecule in layer:
+            text1 = '# %s abs coef\n' % molecule.name
+            text2 = '%s absCoef: %s\n' % (molecule.name, ','.join(map(str, molecule.absCoef.tolist())))
+            openFile.write(text1.encode('utf-8'))
+            openFile.write(text2.encode('utf-8'))
     openFile.close()
-    print('\n\t\t\tprofile written to %s.pyr' % layer.name)
+    print(' |--> %s.pyr' % layer.name)
     return
 
 
@@ -162,19 +173,64 @@ def getProfileList():
     for file in fileList:
         if '.pyr' in file:
             profileFiles.append(file)
-            print(file)
     return profileFiles
+
+
+def getCompletedProfileList(settings):
+    fileList = os.listdir(profileDir)
+    dirList = []
+    completedList = []
+    for file in fileList:
+        if os.path.isdir('%s/%s' % (profileDir, file)):
+            dirList.append('%s/%s' % (profileDir, file))
+    for dir in dirList:
+        if os.path.isfile('%s/profileComplete.pyr' % dir):
+            print(dir.split('/')[-1])
+            completedList.append(dir.split('/')[-1])
+    return completedList
+
+
+def readCompleteProfile(folderPath):
+    fullPath = '%s/%s/profileComplete.pyr' % (profileDir, folderPath)
+    lines = openReturnLines(fullPath)
+    values = {}
+    for line in lines:
+        if line[0] == '#':
+            pass
+        else:
+            cells = line.split(':')
+            values[cells[0].strip()] = cells[1].strip()
+    return values
+
+
+def molSpecProfile(name, settings):
+    folder = name[:-4]
+    folderPath = '%s/%s %s' % (profileDir, folder, settings)
+    fileName = 'profileComplete.pyr'
+    filePath = '%s/%s' % (folderPath, fileName)
+    lines = openReturnLines(filePath)
+    for line in lines:
+        if line[0] == '#':
+            pass
+        elif line.split(':')[0] == 'molSpecific':
+            if 'true' in line.split(':')[1].lower():
+                return True
+            else:
+                return False
 
 
 def checkPlanetProfile(name):
     folderPath = '%s/%s' % (profileDir, name)
+    print('fullpath=%s' % folderPath)
     if not os.path.isdir(folderPath):
         os.mkdir(folderPath)
         return False
     else:
-        fileName = 'completeProfile.pyr'
+        fileName = 'profileComplete.pyr'
         filePath = '%s/%s' % (folderPath, fileName)
+        print('filePath=%s' % filePath)
         if os.path.isfile(filePath):
+            print('found file')
             return True
         else:
             return False
@@ -186,7 +242,8 @@ def parseCustomProfile(name):
     params = {'compositionRules': [],
               'temperatureRules': [],
               'molecules': [],
-              'name': name}
+              'name': name,
+              'molSpecific': False}
     for line in lines:
         if line[0] == '#' or line == '':
                 pass
@@ -203,29 +260,35 @@ def parseCustomProfile(name):
             elif 'lapse' in line.lower():
                 params['temperatureRules'].append(tempDict)
         elif 'surface' in line.lower():
-            tempDict = {}
+            tempDict = {'rangeMin': 0,
+                        'rangeMax': 2000}
             values = line.split(':')[1].split(',')
             tempDict['surfacePressure'] = float(values[0])
             tempDict['surfaceTemperature'] = int(values[1])
             tempDict['maxHeight'] = float(values[2])
-            tempDict['rangeMin'] = int(values[3])
-            tempDict['rangeMax'] = int(values[4])
-            tempDict['initialDepth'] = float(values[5])
-            tempDict['gravity'] = float(values[6])
+            tempDict['initialDepth'] = float(values[3])
+            tempDict['gravity'] = float(values[4])
+            if len(values) > 5:
+                tempDict['rangeMin'] = int(values[5])
+            if len(values) > 6:
+                tempDict['rangeMax'] = int(values[6])
             params['initialValues'] = tempDict
-        elif 'setting' in line.lower():
-            value = line.split(':')[1].lower()
-            params['setting'] = value.lower().strip()
         elif 'molecule' in line.lower():
             values = line.split(':')[1].split(',')
             try:
                 concentration = float(values[1])
+                tempDict = {'name': values[0].lower().strip(),
+                            'concentration': concentration}
             except ValueError:
                 print('invalid concentration %s in %s' % (values[1], filePath))
                 exit()
-            tempDict = {'name': values[0].lower().strip(),
-                        'concentration': concentration}
             params['molecules'].append(tempDict)
+        elif 'molspecific' in line.lower():
+            if line.split(':')[1].lower().strip() == 'true':
+                value = True
+            else:
+                value = False
+            params['molSpecific'] = value
     return params
 
 
@@ -238,17 +301,23 @@ def profileLength(name):
             pass
         else:
             values = line.split(':')
-            return int(values[1])
+            if values[0].lower().strip() == 'completed':
+                return int(values[1])
 
 
-def profileWriteProgress(name, completed, expected):
+def profileWriteProgress(name, completed, expected, processingTime, moleculeSpecific, moleculeList):
     folderPath = '%s/%s' % (profileDir, name)
-    fileName = 'profileProgress.pyr'
-    filePath = '%s/%s' % (folderPath, fileName)
+    fileName = 'profileProgress'
+    filePath = '%s/%s.pyr' % (folderPath, fileName)
+    text = '# profile for %s\n' \
+           '# PyRad v%s\n' \
+           '# total processing time: %ssecs\n' \
+           'molSpecific: %s\n' \
+           'molList: %s\n' \
+           'expected: %s\n' \
+           'completed: %s' % (name, VERSION, int(processingTime),
+                              moleculeSpecific, ','.join(moleculeList), expected, completed)
     openFile = open(filePath, 'wb')
-    text = '# profile progress for %s\n' \
-           'completed: %s\n' \
-           'expected: %s' % (name, completed, expected)
     openFile.write(text.encode('utf-8'))
     openFile.close()
     return
@@ -258,8 +327,9 @@ def profileProgress(name):
     folderPath = '%s/%s' % (profileDir, name)
     fileName = 'profileProgress'
     filePath = '%s/%s.pyr' % (folderPath, fileName)
+    startTime = 0
     if not os.path.isfile(filePath):
-        return False
+        return False, startTime
     lines = openReturnLines(filePath)
     for line in lines:
         if line[0] == '#':
@@ -267,11 +337,14 @@ def profileProgress(name):
         else:
             cells = line.split(':')
             if cells[0] == 'completed':
-                return int(cells[1])
+                completed = int(cells[1])
+            elif cells[0] == 'time':
+                startTime = int(cells[1].strip())
+    return completed, startTime
 
 
 def emptyProfileDirectory(name):
-    folderPath = name
+    folderPath = '%s/%s' % (profileDir, name)
     fileList = os.listdir(folderPath)
     for file in fileList:
         filePath = '%s/%s' % (folderPath, file)
@@ -289,15 +362,29 @@ def profileComplete(name):
     return False
 
 
-def profileWriteComplete(name, completed, expected):
-    folderPath = '%s/%s' % (profileDir, name)
+def profileWriteComplete(planet, completed, expected, processingTime):
+    folderPath = '%s/%s' % (profileDir, planet.folderPath)
     fileName = 'profileComplete'
     filePath = '%s/%s.pyr' % (folderPath, fileName)
     time = datetime.now()
     text = '# profile for %s completed on %s\n' \
            '# PyRad v%s\n' \
+           '# total processing time: %ssecs\n' \
+           'name: %s\n' \
+           'molSpecific: %s\n' \
+           'surfacePressure: %s\n' \
+           'surfaceTemperature: %s\n' \
+           'maxHeight: %s\n' \
+           'initialDepth: %s\n' \
+           'gravity: %s\n' \
+           'rangeMin: %s\n' \
+           'rangeMax: %s\n' \
+           'molList: %s\n' \
            'expected: %s\n' \
-           'completed: %s' % (name, time.strftime("%Y-%m-%d %H:%M:%S"), VERSION, expected, completed)
+           'completed: %s' % (planet.folderPath, time.strftime("%Y-%m-%d %H:%M:%S"), VERSION, int(processingTime),
+                              planet.folderPath, planet.moleculeSpecific, planet.surfacePressure, planet.surfaceTemperature,
+                              int(planet.maxHeight / 100000), planet.heightList[1], planet.gravity,
+                              planet.rangeMin, planet.rangeMax, ','.join(planet.moleculeList), expected, completed)
     openFile = open(filePath, 'wb')
     openFile.write(text.encode('utf-8'))
     openFile.close()
@@ -307,31 +394,51 @@ def profileWriteComplete(name, completed, expected):
     return
 
 
-def readPlanetProfile(name, layerNumber, length):
+def readPlanetProfileMolecule(name, layerNumber, length, moleculeName):
+    folderPath = '%s/%s' % (profileDir, name)
+    fileName = 'Layer %s:%s' % (layerNumber, length)
+    filePath = '%s/%s.pyr' % (folderPath, fileName)
+    print('Reading %s profile from %s...                                ' % (moleculeName, fileName), end='\r', flush=True)
+    lines = openReturnLines(filePath)
+    for line in lines:
+        keyValue = line.split(':')
+        if line[0] == '#':
+            pass
+        elif keyValue[0].strip() == '%s absCoef' % moleculeName:
+            absList = keyValue[1].split(',')
+            absCoefList = []
+            for value in absList:
+                absCoefList.append(float(value))
+            return absCoefList
+    print('missing absCoef for %s in %s' % (moleculeName, filePath))
+    exit()
+
+
+def readPlanetProfile(name, layerNumber, length, moleculeSpecific=False):
     folderPath = '%s/%s' % (profileDir, name)
     fileName = 'Layer %s:%s' % (layerNumber, length)
     filePath = '%s/%s.pyr' % (folderPath, fileName)
     lines = openReturnLines(filePath)
     print('Reading profile from %s...                                ' % fileName, end='\r', flush=True)
-    layerDict = {}
+    layerDict = {'molecule list': []}
     for line in lines:
         keyValue = line.split(':')
         if line[0] == '#':
             pass
         elif keyValue[0].strip() == 'name':
             layerDict[keyValue[0]] = keyValue[1].strip()
-        elif keyValue[0].strip() == 'absCoef':
+        elif keyValue[0].strip() == 'layer absCoef':
             absList = keyValue[1].split(',')
             absCoefList = []
             for value in absList:
                 absCoefList.append(float(value))
-            layerDict[keyValue[0]] = absCoefList
+            layerDict['absCoef'] = absCoefList
         elif keyValue[0].strip() == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
             layerDict[keyValue[0]] = int(keyValue[1])
-        elif keyValue[0].strip() == 'height':
+        elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth':
             layerDict[keyValue[0]] = float(keyValue[1])
         else:
-            layerDict[keyValue[0]] = float(keyValue[1])
+            pass
     return layerDict
 
 
@@ -476,18 +583,7 @@ def downloadHitran(path, globalID, waveMin, waveMax):
           '&request_params=%s' % params
     try:
         request = urlrequest.urlopen(url)
-    except urlexception.HTTPError:
-        print('Can not retrieve data for given parameters.')
-        openFile = open(path, 'wb')
-        openFile.write(bytes('%s no data available for %s, range %s-%s' %
-                             (NULL_TAG, globalID, waveMin, waveMax), 'utf-8'))
-        openFile.close()
-        request = False
-    except urlexception.URLError:
-        print('Can not connect to %s' % str(url))
-        request = False
-    dirLength = len(cwd)
-    if request:
+        dirLength = len(cwd)
         i = 0
         openFile = open(path, 'wb')
         chunkSize = 1024 * 64
@@ -502,6 +598,14 @@ def downloadHitran(path, globalID, waveMin, waveMax):
             print(outputText, end='\r', flush=True)
         print('%s%s downloaded.\n' % (outputText, i * chunkSize), end='\r')
         openFile.close()
+    except urlexception.HTTPError:
+        print('Can not retrieve data for given parameters.')
+        openFile = open(path, 'wb')
+        openFile.write(bytes('%s no data available for %s, range %s-%s' %
+                             (NULL_TAG, globalID, waveMin, waveMax), 'utf-8'))
+        openFile.close()
+    except urlexception.URLError:
+        print('Can not connect to %s' % str(url))
 
 
 def readQ(ID, isotopeDepth):
@@ -637,8 +741,8 @@ else:
                     'regularCyan': '\x1b[0;36;48m',
                     'colorEnd': '\x1b[0m'}
 
-VERSION = '2.0'
-titleLine = "%s***********************              PyRad v%s              ***********************%s" \
+VERSION = '3.0'
+titleLine = "%s******************              PyRad v%s              ******************%s" \
             % (TEXT_COLORS['underlineCyan'], VERSION, TEXT_COLORS['colorEnd'])
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)
 GREETING = "%s\n\n" \

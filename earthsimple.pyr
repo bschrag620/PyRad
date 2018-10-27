@@ -1,17 +1,16 @@
 # A demo file for pyrad
 
-setting: low
-
-#         mBar  , K  , km,cm-1,cm-1,  m  , g
-surface: 1013.25, 300, 120, 100, 1500, 100, 9.8
+#         mBar  , K  , km,  m  , g,  cm-1,cm-1
+surface: 1013.25, 288, 120, 100, 9.8, 00, 2000
 
 #        mol text name, concentration
 molecule: co2, .000400
 molecule: h2o, .018000
 molecule: o3, 0
 molecule: o2, .20
-molecule: n2, .78
+molecule: n2, .77
 molecule: ch4, .0000018
+molecule: ar, .009
 
 #           name,      endHeight, endTemp
 lapse rate: troposphere, 11, 216
@@ -22,18 +21,18 @@ lapse rate: stratopause, 51, 270
 lapse rate: mesosphere, 71, 214
 lapse rate: mesosphere2, 80, 190
 lapse rate: mesopause, 90, 190
-lapse rate: thermosphere, 100, 228
+lapse rate: thermosphere, 120, 228
 
 #                 name,           endHeight, endValue, moleculeName
 composition rate: WV boundary layer, 2.5, 18000e-6, h2o
 composition rate: WV troposphere1, 8, 200e-6, h2o
 composition rate: WV troposphere2, 9, 400e-6, h2o
 composition rate: WV troposphere2, 10, 400e-6, h2o
-composition rate: WV tropopause', 20, 2e-6, h2o
-composition rate: WV stratosphere to top',90, 0, h2o
+composition rate: WV tropopause, 20, 2e-6, h2o
+composition rate: WV stratosphere to top,120, 0, h2o
 
 composition rate: troposphere ozone, 16, 60E-9, o3
 composition rate: tropopause ozone, 32, 5E-6, o3
 composition rate: upper strat ozone, 60, 0, o3
-composition rate: strat on up ozone, 90, 0, o3
+composition rate: strat on up ozone, 120, 0, o3
 
