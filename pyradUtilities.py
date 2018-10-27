@@ -12,11 +12,40 @@ dataDir = '%s/data' % cwd
 curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
 profileDir = '/%s/profiles' % dataDir
+themeDir = '%s/themes' % dataDir
 debuggerFilePath = '%s/logger.txt' % cwd
 now = datetime.now()
 debuggerFile = open(debuggerFilePath, 'wb')
 debuggerFile.write(bytes('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"), 'utf-8'))
 debuggerFile.close()
+
+
+class Theme:
+    def __init__(self, value='dark'):
+        self.theme = value
+        self.faceColor = None
+        self.textColor = None
+        self.gridColor = None
+        self.colorList = []
+        self.loadTheme(self.theme)
+
+    def rgbTuple(self, value):
+        rgb = value.split(',')
+        return (float(rgb[0]) / 255, float(rgb[1]) / 255, float(rgb[2]) / 255)
+
+    def loadTheme(self, value):
+        fullPath = '%s/%s.pyr' % (themeDir, value)
+        lines = openReturnLines(fullPath)
+        for line in lines:
+            cells = line.split(':')
+            if cells[0] == 'colorList':
+                self.colorList.append(self.rgbTuple(cells[1]))
+            elif cells[0] == 'textColor':
+                self.textColor = self.rgbTuple(cells[1])
+            elif cells[0] == 'faceColor':
+                self.faceColor = self.rgbTuple(cells[1])
+            elif cells[0] == 'gridColor':
+                self.gridColor = self.rgbTuple(cells[1])
 
 
 class Settings:
@@ -95,7 +124,7 @@ def logToFile(text):
 def setupDir():
     print('Verifying data structure...', end='')
     sys.stdout.flush()
-    directoryList = [dataDir, curvesDir, profileDir]
+    directoryList = [dataDir, curvesDir, profileDir, themeDir]
     fileList = []
     directoryCheck = True
     fileCheck = True
@@ -115,8 +144,34 @@ def setupDir():
             if not os.path.isfile(molParamsFile):
                 downloadMolParam()
             getMolParamsFromHitranFile()
+    # check theme
+    filePath = '%s/dark.pyr' % themeDir
+    if not os.path.isfile(filePath):
+        writeTheme(filePath)
     print('files checked.')
     return directoryCheck and fileCheck
+
+
+def writeTheme(fullPath):
+    openFile = open(fullPath, 'wb')
+    text = '# created by PyRad v%s on %s.\n' \
+           '# values are (r, g, b) [0-255]\n' % (VERSION, now.strftime("%Y-%m-%d %H:%M:%S"))
+    properties = THEME['dark']
+    value = 'faceColor'
+    r,g,b = properties[value]
+    text += '%s: %s, %s, %s\n' % (value, r, g, b)
+    value = 'gridColor'
+    r, g, b = properties[value]
+    text += '%s: %s, %s, %s\n' % (value, r, g, b)
+    value = 'textColor'
+    r, g, b = properties[value]
+    text += '%s: %s, %s, %s\n' % (value, r, g, b)
+    for color in properties['colorList']:
+        r,g,b = color
+        text += '%s: %s, %s, %s\n' % ('colorList', r,g,b)
+    openFile.write(text.encode('utf-8'))
+    openFile.close()
+    return
 
 
 def openReturnLines(fullPath):
@@ -903,6 +958,16 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
                'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
 
+THEME = {'dark':    {'faceColor':   (29, 29, 29),
+                     'colorList':    [(239, 244, 255),
+                                      (0, 163, 0),
+                                      (126,56, 120),
+                                      (0, 171, 169),
+                                      (185, 29,171),
+                                      (30, 113, 69),
+                                      (227, 162, 26)],
+                     'textColor':      (239, 244, 255),
+                     'gridColor':   (204, 204, 204)}}
 
 print(GREETING)
 setupDir()

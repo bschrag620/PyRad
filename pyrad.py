@@ -17,7 +17,7 @@ class Menu:
         self.menuParams = menuParams
 
     def displayMenu(self):
-        titleStr = '\t%s\tdetail: %s' % (self.title, pyradClasses.settings.setting)
+        titleStr = '\t%s  detail: %s' % (self.title, pyradClasses.settings.setting)
         while len(titleStr) < 60:
             titleStr += ' '
         print('\n%s' % util.underlineCyan(titleStr))
@@ -88,7 +88,7 @@ class Menu:
                 allValid = True
                 userChoices = []
                 for i in inputs:
-                    print('i: %s' % i)
+
                     if i.strip() not in validEntry:
                         allValid = False
                     else:
@@ -559,7 +559,7 @@ def plotProfileComponentsMenu(param=None):
     for profile in profileList:
         if util.profileComplete('%s %s' % (profile, pyradClasses.settings.setting)) and \
                 util.molSpecProfile(profile, pyradClasses.settings.setting):
-            entryList.append(Entry('%s' % profile[:-4], nextFunction=chooseDirectionComponents, functionParams=profile))
+                entryList.append(Entry('%s' % profile[:-4], nextFunction=chooseDirectionComponents, functionParams=profile))
     menuAtmTransfer = Menu('Choose atmosphere', entryList, previousMenu=chooseAtmTransferBuildProfile)
     menuAtmTransfer.displayMenu()
     return
@@ -614,15 +614,17 @@ def settingsMenu(previousMenu):
     midSetting = Entry('mid (intensity > 1E-28)', nextFunction=pyradClasses.settings.changeSetting, functionParams='mid')
     hiSetting = Entry('hi (all absorption lines)', nextFunction=pyradClasses.settings.changeSetting, functionParams='hi')
     menuSettings = Menu('Choose level of detail', [lowSetting, midSetting, hiSetting], previousMenu=menuMain)
-    return menuSettings
+    menuSettings.displayMenu()
+    previousMenu.displayMenu()
+    return
 
 
 def menuMain():
     gasCellEntry = Entry('Gas cell simulator', nextFunction=gasCellMenu)
     atmosphereTransferEntry = Entry('Atmosphere transmission', nextFunction=chooseAtmTransferBuildProfile)
     mainMenu = Menu('Main menu', [gasCellEntry, atmosphereTransferEntry])
-    return mainMenu
-
+    mainMenu.displayMenu()
+    return
 
 
 def duplicateObj(obj):
@@ -804,6 +806,5 @@ TEMPERATURE_UNITS = ['K', 'C', 'F']
 RANGE_UNITS = ['um', 'cm-1']
 COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc', 'concentration']
 
-menu = menuMain()
 while True:
-    menu = menu.displayMenu()
+    menuMain()

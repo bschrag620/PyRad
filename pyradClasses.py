@@ -17,7 +17,9 @@ p0 = 1013.25
 avo = 6.022140857E23
 sb = 5.67E-8
 
+
 settings = utils.Settings('low')
+theme = utils.Theme()
 
 
 def reduceRes(array, lumpTo=1.0):
@@ -306,7 +308,6 @@ class Isotope(list):
         self.layer = self.molecule.layer
         self.q = {}
         self.crossSection = np.copy(self.layer.crossSection)
-        self.lineSurvey = np.zeros(int((self.layer.rangeMax - self.layer.rangeMin) / utils.BASE_RESOLUTION))
         self.progressCrossSection = False
 
     @property
@@ -450,12 +451,12 @@ class Isotope(list):
                 i += 1
             progress += 1
             intensity = line.intensity
-            arrayIndex = int((line.wavenumber - layer.rangeMin) / layer.resolution)
-            arrayLength = len(lineSurvey) - 1
-            if isBetween(arrayIndex, 0, arrayLength):
-                lineSurvey[arrayIndex] = lineSurvey[arrayIndex] + intensity
-        self.lineSurvey = lineSurvey
-        return self.lineSurvey
+            if intensity > settings.lineIntensityCutoff:
+                arrayIndex = int((line.wavenumber - layer.rangeMin) / layer.resolution)
+                arrayLength = len(lineSurvey) - 1
+                if isBetween(arrayIndex, 0, arrayLength):
+                    lineSurvey[arrayIndex] = lineSurvey[arrayIndex] + intensity
+        return lineSurvey
 
     def linelist(self):
         lines = []
@@ -473,6 +474,10 @@ class Isotope(list):
 
     def returnCopy(self):
         return self.linelist()
+
+    @property
+    def lineSurvey(self):
+        return self.createLineSurvey()
 
 
 class Molecule(list):
@@ -1197,19 +1202,19 @@ def isBetween(test, minValue, maxValue):
 
 def plot(propertyToPlot, title, plotList, fill=False):
     plt.figure(figsize=(10, 6), dpi=80)
-    plt.subplot(111, facecolor='xkcd:dark grey')
+    plt.subplot(111, facecolor=theme.faceColor)
     plt.xlabel('wavenumber cm-1')
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel(propertyToPlot)
     if propertyToPlot == 'line survey':
         plt.yscale('log')
-    plt.grid('grey', linewidth=.5, linestyle=':')
+    plt.grid(theme.gridColor, linewidth=.5, linestyle=':')
     plt.title('%s' % title)
     handles = []
     linewidth = .7
     alpha = .7
-    for singlePlot, color in zip(plotList, COLOR_LIST):
+    for singlePlot, color in zip(plotList, theme.colorList):
         yAxis, fillAxis = returnPlot(singlePlot, propertyToPlot)
         fig, = plt.plot(singlePlot.xAxis,  yAxis, linewidth=linewidth, alpha=alpha, color=color,
                         label='%s' % singlePlot.name)
@@ -1219,14 +1224,14 @@ def plot(propertyToPlot, title, plotList, fill=False):
         alpha = .5
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
-    plt.setp(text, color='w')
+    plt.setp(text, color=theme.textColor)
     plt.show()
 
 
 def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=None, surfaceSpectrum=None,
                  planckTemperatureList=None, planckType='wavenumber'):
     plt.figure(figsize=(10, 6), dpi=80)
-    plt.subplot(111, facecolor='xkcd:dark grey')
+    plt.subplot(111, facecolor=theme.faceColor)
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     if layer:
@@ -1250,52 +1255,32 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
         xAxis = np.linspace(rangeMin, rangeMax, (rangeMax - rangeMin) / utils.BASE_RESOLUTION)
     plt.title('%s' % title)
     handles = []
-    blue = .3
-    red = 1
-    green = .6
-    dr = -.15
-    db = .15
-    dg = .15
     if not rangeMax:
         xAxis = layer.xAxis
-    for temperature in planckTemperatureList:
+    for temperature, color in zip(planckTemperatureList, theme.colorList):
         yAxis = planckFunction(xAxis, float(temperature))
-        fig, = plt.plot(xAxis, yAxis, linewidth=.75, color=(red, green, blue),
+        fig, = plt.plot(xAxis, yAxis, linewidth=.75, color=color,
                         linestyle=':', label='%sK : %sWm-2' %
                         (temperature, round(integrateSpectrum(yAxis, res=(rangeMax - rangeMin) / len(yAxis)), 2)))
         handles.append(fig)
-        if red + dr < 0 or red + dr > 1:
-            dr *= -1
-        if green + dg > 1 or green + dg < 0:
-            dg *= -1
-        if blue + db > 1 or blue + db < 0:
-            db *= -1
-        red += dr
-        green += dg
-        blue += db
-        if red < .3 and green < .3 and blue < .3:
-            green += .5
-            blue += .2
-        if red < .3 and green < .3:
-            green += .4
     if objList:
-        alpha = .7
-        linewidth = .7
-        for obj, color in zip(objList, COLOR_LIST):
+        alpha = 1
+        linewidth = 1
+        for obj, color in zip(objList, theme.colorList):
             yAxis = obj.transmission(surfaceSpectrum)
             fig, = plt.plot(layer.xAxis, yAxis, linewidth=linewidth,
                             alpha=alpha, color=color,
                             label='%s : %sWm-2' % (obj.name, round(integrateSpectrum(yAxis, pi), 2)))
             handles.append(fig)
-            alpha = .5
-            linewidth = .7
+            alpha = 1
+            linewidth = 1
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
-    plt.setp(text, color='w')
+    plt.setp(text, color=theme.textColor)
     plt.show()
 
 
-def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=[300, 280, 250, 210, 170], verify=True, integrateRange=[]):
+def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=[300, 280, 250, 210, 170], verify=True, integrateRange=[], res=1):
     linewidth = .7
     alpha = .7
     plt.figure(figsize=(10, 6), dpi=80)
@@ -1307,33 +1292,31 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=[
     heightFlag = True
     if height is None:
         heightFlag = False
-    for planet, color in zip(planets, COLOR_LIST[1:]):
+    for planet, color in zip(planets, theme.colorList):
         if not heightFlag:
             height = planet.maxHeight / 100000
         yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=verify))
         xAxis = np.linspace(planet.rangeMin, planet.rangeMax, len(yAxis))
-        powerSpectrum = int(integrateSpectrum(yAxis, pi, res=1))
+        powerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
         effTemp = int(stefanB(powerSpectrum))
         fig, = plt.plot(xAxis, yAxis, linewidth=linewidth,
                         alpha=alpha, color=color,
                         label='%s : %sWm-2, eff : %sK' % (planet.name, powerSpectrum, effTemp))
         handles.append(fig)
-    color = 1
-    for temperature in temperatureList:
+    for temperature, color in zip(temperatureList, theme.colorList):
         yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
-        fig, = plt.plot(xAxis, yAxis, linewidth=.5, color=(color, color, color), alpha=alpha,
+        fig, = plt.plot(xAxis, yAxis, linewidth=.5, color=color, alpha=alpha,
                         linestyle=':', label='%sK : %sWm-2' %
                                              (temperature,
-                                              int(integrateSpectrum(yAxis, pi, res=1))))
+                                              int(integrateSpectrum(yAxis, pi, res=res))))
         handles.append(fig)
-        color -= .15
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
-    plt.setp(text, color='w')
+    plt.setp(text, color=theme.textColor)
     plt.show()
 
 
-def plotPlanetAndComponents(planet, height=None, direction='down', temperatureList=[300, 280, 250, 210, 170], verify=True):
+def plotPlanetAndComponents(planet, height=None, direction='down', temperatureList=[300, 280, 250, 210, 170], verify=True, res=1):
     linewidth = .8
     alpha = .8
     plt.figure(figsize=(10, 6), dpi=80)
@@ -1348,8 +1331,8 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
     yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=verify, moleculeSpecific=True))
     xAxis = np.linspace(planet.rangeMin, planet.rangeMax, len(yAxis))
     planckAxis = pyradPlanck.planckWavenumber(xAxis, float(planet.surfaceTemperature))
-    surfacePower = int(integrateSpectrum(planckAxis, pi, res=1))
-    powerSpectrum = int(integrateSpectrum(yAxis, pi, res=1))
+    surfacePower = int(integrateSpectrum(planckAxis, pi, res=res))
+    powerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
     plt.title('Surface temp: %sK    Surface flux: %sWm-2    Effec temp: %sK'
               % (planet.surfaceTemperature, surfacePower, int(stefanB(powerSpectrum))))
     fig, = plt.plot(xAxis, yAxis, linewidth=.7,
@@ -1368,14 +1351,14 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
             layer.absorptionCoefficient = np.asarray(utils.readPlanetProfileMolecule(tempFolder, i, length, molecule))
             i += 1
         yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=False))
-        tempPowerSpectrum = int(integrateSpectrum(yAxis, pi, res=1))
+        tempPowerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
         fig, = plt.plot(xAxis, yAxis, linewidth=linewidth,
                             alpha=alpha, color=color,
                             label='%s effect : %sWm-2' % (planet.name, surfacePower - tempPowerSpectrum))
         handles.append(fig)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
-    #plt.setp(text, color='w')
+    plt.setp(text, color=theme.textColor)
     plt.show()
     planet.name = tempName
     print('Reloading original planet data...')
@@ -1461,6 +1444,3 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
 
 INERT_MOL_DATA = {901: {'mass': 39.948}}
 
-THEME = {'dark':    {'facecolor':   (29/255, 29/255, 29/255),
-                     'color0':      (239/255, 244/255, 1),
-                     'colorList':    [(153/255,180/255,51/255)]}}
