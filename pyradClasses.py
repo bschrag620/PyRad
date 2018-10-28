@@ -43,12 +43,14 @@ def returnHMS(time):
     return hours, minutes, seconds
 
 
-def loadEmptyPlanet(folderPath, planet=None, moleculeSpecific=False, verify=False):
+def loadEmptyPlanet(folderPath, planet=None, verify=False):
     values = utils.readCompleteProfile(folderPath)
     if planet is None:
         planet = Planet(values['name'], float(values['surfacePressure']), int(values['surfaceTemperature']), float(values['maxHeight']),
-                        rangeMin=int(values['rangeMin']), rangeMax=int(values['rangeMax']), initialThickness=float(values['initialDepth']),
-                        gravity=float(values['gravity']), moleculeSpecific=strToBool(values['molSpecific']))
+                        rangeMin=int(values['rangeMin']), rangeMax=int(values['rangeMax']), initialThickness=int(float(values['initialDepth'])),
+                        gravity=float(values['gravity']))
+        for mol in values['molList'].split(','):
+            planet.moleculeList.append(mol)
     if utils.profileComplete(folderPath):
         fileLength = utils.profileLength(folderPath)
     else:
@@ -57,7 +59,7 @@ def loadEmptyPlanet(folderPath, planet=None, moleculeSpecific=False, verify=Fals
     while len(planet.atmosphere) > 0:
         planet.atmosphere.pop()
     for i in range(1, fileLength + 1):
-        lP = utils.readPlanetProfile(folderPath, i, fileLength, moleculeSpecific)
+        lP = utils.readPlanetProfile(folderPath, i, fileLength)
         layer = Layer(lP['depth'], lP['T'], lP['P'], lP['rangeMin'], lP['rangeMax'], height=lP['height'],
                       name=lP['name'])
         layer.absorptionCoefficient = np.asarray(lP['absCoef'])
@@ -75,12 +77,6 @@ def createCustomPlanet(name):
     moleculeList = initialParameters['molecules']
     temperatureRuleList = initialParameters['temperatureRules']
     compositionRuleList = initialParameters['compositionRules']
-
-    #try:
-    #    value = initialParameters['setting']
-    #except KeyError:
-    #    value = 'low'
-    #settings.changeSetting(value)
 
     planet = Planet(initialParameters['name'], initialValues['surfacePressure'], initialValues['surfaceTemperature'],
                     initialValues['maxHeight'], rangeMin=initialValues['rangeMin'],
@@ -434,7 +430,6 @@ class Isotope(list):
                                                          (self.rangeMax - self.rangeMin) / self.resolution,
                                                          endpoint=True),
                                              crossSection)
-
         self.progressCrossSection = True
 
     def createLineSurvey(self):
@@ -916,7 +911,7 @@ class Atmosphere(list):
 
 class Planet:
     def __init__(self, name, pressure, temperature, maxHeight,
-                 gravity=9.80665, rangeMin=0, rangeMax=2000, initialThickness=100, moleculeSpecific=False):
+                 gravity=9.80665, rangeMin=0, rangeMax=2000, initialThickness=100):
         self.name = name
         self.gravity = gravity
         self.maxHeight = maxHeight * 100000
@@ -930,7 +925,6 @@ class Planet:
         self.rangeMin = rangeMin
         self.rangeMax = rangeMax
         self.setting = settings.setting
-        self.moleculeSpecific = moleculeSpecific
         self.atmosphere = Atmosphere("%s's atmosphere" % self.name, planet=self)
         self.initialLayer =  \
             self.atmosphere.addLayer(initialThickness * 100, temperature, pressure, rangeMin, rangeMax,
@@ -1022,8 +1016,7 @@ class Planet:
                 else:
                     validNumber = False
                     while not validNumber:
-                        print(
-                            'Enter the new initial depth. Larger depth will decrease number of layers, smaller will increase')
+                        print('Enter the new initial depth. Larger depth will decrease number of layers, smaller will increase')
                         userNumber = input('Current depth is %s:' % utils.limeText('%sm' % (int(self.depthList[0]) / 100)))
                         try:
                             newDepth = float(userNumber)
@@ -1061,12 +1054,12 @@ class Planet:
             utils.writePlanetProfile(self.folderPath, layer, processTime, self.moleculeList, moleculeSpecific=moleculeSpecific)
             totalProcessTime += processTime
             utils.profileWriteProgress(self.folderPath, i, len(self.heightList), totalProcessTime,
-                                       self.moleculeSpecific, self.moleculeList)
+                                       moleculeSpecific, self.moleculeList)
             resetCrossSection(layer)
             layer.absorptionCoefficient = np.zeros(len(layer.crossSection))
             layer.progressAbsCoef = False
             i += 1
-        utils.profileWriteComplete(self, i - 1, len(self.heightList), totalProcessTime)
+        utils.profileWriteComplete(self, i - 1, len(self.heightList), totalProcessTime, moleculeSpecific=moleculeSpecific)
         return
 
     def loadProfile(self, verify=True, moleculeSpecific=False):
@@ -1168,7 +1161,6 @@ class AtmosphereRule:
         return height, concentration, pressure
 
     def setBaseValues(self, ruleType, molecule):
-        print(molecule)
         if ruleType == 'temperature':
             return self.baseHeightTemperatureRule()
         elif ruleType == 'composition':
@@ -1280,11 +1272,10 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
     plt.show()
 
 
-def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=[300, 280, 250, 210, 170], verify=True, integrateRange=[], res=1):
-    linewidth = .7
-    alpha = .7
+def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=(290, 260, 230, 200), verify=True, integrateRange=[], res=1):
+    linewidth = 1
     plt.figure(figsize=(10, 6), dpi=80)
-    plt.subplot(111, facecolor='xkcd:almost black')
+    plt.subplot(111, facecolor=theme.faceColor)
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
@@ -1299,13 +1290,12 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=[
         xAxis = np.linspace(planet.rangeMin, planet.rangeMax, len(yAxis))
         powerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
         effTemp = int(stefanB(powerSpectrum))
-        fig, = plt.plot(xAxis, yAxis, linewidth=linewidth,
-                        alpha=alpha, color=color,
+        fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color,
                         label='%s : %sWm-2, eff : %sK' % (planet.name, powerSpectrum, effTemp))
         handles.append(fig)
     for temperature, color in zip(temperatureList, theme.colorList):
         yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
-        fig, = plt.plot(xAxis, yAxis, linewidth=.5, color=color, alpha=alpha,
+        fig, = plt.plot(xAxis, yAxis, linewidth=1, color=color,
                         linestyle=':', label='%sK : %sWm-2' %
                                              (temperature,
                                               int(integrateSpectrum(yAxis, pi, res=res))))
@@ -1316,11 +1306,10 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=[
     plt.show()
 
 
-def plotPlanetAndComponents(planet, height=None, direction='down', temperatureList=[300, 280, 250, 210, 170], verify=True, res=1):
-    linewidth = .8
-    alpha = .8
+def plotPlanetAndComponents(planet, height=None, direction='down', temperatureList=(290, 260, 230, 200),verify=True, res=1):
+    linewidth = 1
     plt.figure(figsize=(10, 6), dpi=80)
-    plt.subplot(111, facecolor=(.8, .8, .8))
+    plt.subplot(111, facecolor=theme.faceColor)
     plt.margins(0.01)
     plt.subplots_adjust(left=.05, bottom=.05, right=.97, top=.95)
     plt.ylabel('radiance Wm-2sr-1(cm-1)-1')
@@ -1335,34 +1324,39 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
     powerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
     plt.title('Surface temp: %sK    Surface flux: %sWm-2    Effec temp: %sK'
               % (planet.surfaceTemperature, surfacePower, int(stefanB(powerSpectrum))))
-    fig, = plt.plot(xAxis, yAxis, linewidth=.7,
-                    alpha=1, color='black',
+    fig, = plt.plot(xAxis, yAxis, linewidth=1, color=theme.colorList[0],
                     label='net flux: %sWm-2  netGHE: %sWm-2' % (powerSpectrum, surfacePower - powerSpectrum))
     handles.append(fig)
-
     tempName = planet.name
-    tempFolder = planet.folderPath
     length = len(planet.atmosphere)
-    for molecule, color in zip(planet.moleculeList, COLOR_LIST[1:]):
+    for molecule, color in zip(planet.moleculeList, theme.colorList[1:]):
         print('processing %s in atmosphere' % molecule)
         planet.name = molecule
         i = 1
         for layer in planet.atmosphere:
-            layer.absorptionCoefficient = np.asarray(utils.readPlanetProfileMolecule(tempFolder, i, length, molecule))
+            layer.absorptionCoefficient = np.asarray(utils.readPlanetProfileMolecule(tempName, i, length, molecule))
             i += 1
         yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=False))
         tempPowerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
-        fig, = plt.plot(xAxis, yAxis, linewidth=linewidth,
-                            alpha=alpha, color=color,
+        fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color,
                             label='%s effect : %sWm-2' % (planet.name, surfacePower - tempPowerSpectrum))
+        handles.append(fig)
+    for temperature, color in zip(temperatureList, theme.colorList):
+        yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
+        fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color,
+                        linestyle=':', label='%sK : %sWm-2' %
+                                             (temperature,
+                                              int(integrateSpectrum(yAxis, pi, res=res))))
         handles.append(fig)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color=theme.textColor)
     plt.show()
     planet.name = tempName
-    print('Reloading original planet data...')
-    planet.loadProfile(verify=False)
+    #print('Reloading original planet data...')
+    #return loadEmptyPlanet(planet.name, verify=False)
+    return
+
 
 
 

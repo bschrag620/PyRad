@@ -1,0 +1,34 @@
+# created by PyRad v3.0 on 2018-10-27 09:53:17.
+# values are (r, g, b) [0-255]
+# placing color names next to them isn't necessary, just helps correct a color if you don't like it later
+# don't put comments after the color values
+
+# dark grey
+faceColor: 29, 29, 29
+
+# light grey
+gridColor: 204, 204, 204
+
+# pale blue
+textColor: 239, 244, 255
+
+# pale blue
+colorList: 239, 244, 255
+
+# light purple
+colorList: 159, 0, 167
+
+# teal
+colorList: 0, 171, 169
+
+# dark red
+colorList: 185, 29, 171
+
+# dark green
+colorList: 30, 113, 69
+
+# orange
+colorList: 227, 162, 26
+
+# light green
+colorList: 0, 163, 0

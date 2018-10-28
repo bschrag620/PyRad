@@ -1,0 +1,32 @@
+# created by PyRad v3.0 on 2018-10-27 09:53:17.
+# values are (r, g, b) [0-255]
+
+# dark grey
+textColor: 29, 29, 29
+
+# light grey
+gridColor: 204, 204, 204
+
+# pale blue
+faceColor: 239, 244, 255
+
+# dark purple
+colorList: 96, 60, 186
+
+# light green
+colorList: 0, 163, 0
+
+# light purple
+colorList: 159, 0, 167
+
+# teal
+colorList: 0, 171, 169
+
+# dark red
+colorList: 185, 29, 171
+
+# dark green
+colorList: 30, 113, 69
+
+# orange
+colorList: 227, 162, 26

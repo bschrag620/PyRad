@@ -12,7 +12,7 @@ dataDir = '%s/data' % cwd
 curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
 profileDir = '/%s/profiles' % dataDir
-themeDir = '%s/themes' % dataDir
+themeDir = '%s/themes' % cwd
 debuggerFilePath = '%s/logger.txt' % cwd
 now = datetime.now()
 debuggerFile = open(debuggerFilePath, 'wb')
@@ -46,6 +46,14 @@ class Theme:
                 self.faceColor = self.rgbTuple(cells[1])
             elif cells[0] == 'gridColor':
                 self.gridColor = self.rgbTuple(cells[1])
+
+    @property
+    def listOfThemes(self):
+        themeList = []
+        fileList = getPyrFileList(themeDir)
+        for file in fileList:
+            themeList.append(file.split('.')[0])
+        return themeList
 
 
 class Settings:
@@ -218,12 +226,12 @@ def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecif
             openFile.write(text1.encode('utf-8'))
             openFile.write(text2.encode('utf-8'))
     openFile.close()
-    print(' |--> %s.pyr' % layer.name)
+    print('\t\t\t\t\t\t ||> %s.pyr' % layer.name, end='\r', flush=True)
     return
 
 
-def getProfileList():
-    fileList = os.listdir(cwd)
+def getPyrFileList(folder=cwd):
+    fileList = os.listdir(folder)
     profileFiles = []
     for file in fileList:
         if '.pyr' in file:
@@ -231,7 +239,7 @@ def getProfileList():
     return profileFiles
 
 
-def getCompletedProfileList(settings):
+def getCompletedProfileList():
     fileList = os.listdir(profileDir)
     dirList = []
     completedList = []
@@ -240,7 +248,6 @@ def getCompletedProfileList(settings):
             dirList.append('%s/%s' % (profileDir, file))
     for dir in dirList:
         if os.path.isfile('%s/profileComplete.pyr' % dir):
-            print(dir.split('/')[-1])
             completedList.append(dir.split('/')[-1])
     return completedList
 
@@ -258,34 +265,31 @@ def readCompleteProfile(folderPath):
     return values
 
 
-def molSpecProfile(name, settings):
-    folder = name[:-4]
-    folderPath = '%s/%s %s' % (profileDir, folder, settings)
-    fileName = 'profileComplete.pyr'
-    filePath = '%s/%s' % (folderPath, fileName)
-    lines = openReturnLines(filePath)
-    for line in lines:
-        if line[0] == '#':
-            pass
-        elif line.split(':')[0] == 'molSpecific':
-            if 'true' in line.split(':')[1].lower():
-                return True
-            else:
-                return False
+def molSpecProfileList():
+    completedProfileDirList = getCompletedProfileList()
+    completeList = []
+    for completeDir in completedProfileDirList:
+        folderPath = '%s/%s' % (profileDir, completeDir)
+        fullPath = '%s/profileComplete.pyr' % folderPath
+        lines = openReturnLines(fullPath)
+        for line in lines:
+            if line[0] == '#':
+                pass
+            elif line.split(':')[0] == 'molSpecific':
+                if 'true' in line.split(':')[1].lower():
+                    completeList.append(completeDir)
+    return completeList
 
 
 def checkPlanetProfile(name):
     folderPath = '%s/%s' % (profileDir, name)
-    print('fullpath=%s' % folderPath)
     if not os.path.isdir(folderPath):
         os.mkdir(folderPath)
         return False
     else:
         fileName = 'profileComplete.pyr'
         filePath = '%s/%s' % (folderPath, fileName)
-        print('filePath=%s' % filePath)
         if os.path.isfile(filePath):
-            print('found file')
             return True
         else:
             return False
@@ -400,6 +404,8 @@ def profileProgress(name):
 
 def emptyProfileDirectory(name):
     folderPath = '%s/%s' % (profileDir, name)
+    if not os.path.isdir(folderPath):
+        return
     fileList = os.listdir(folderPath)
     for file in fileList:
         filePath = '%s/%s' % (folderPath, file)
@@ -417,7 +423,7 @@ def profileComplete(name):
     return False
 
 
-def profileWriteComplete(planet, completed, expected, processingTime):
+def profileWriteComplete(planet, completed, expected, processingTime, moleculeSpecific=False):
     folderPath = '%s/%s' % (profileDir, planet.folderPath)
     fileName = 'profileComplete'
     filePath = '%s/%s.pyr' % (folderPath, fileName)
@@ -437,7 +443,7 @@ def profileWriteComplete(planet, completed, expected, processingTime):
            'molList: %s\n' \
            'expected: %s\n' \
            'completed: %s' % (planet.folderPath, time.strftime("%Y-%m-%d %H:%M:%S"), VERSION, int(processingTime),
-                              planet.folderPath, planet.moleculeSpecific, planet.surfacePressure, planet.surfaceTemperature,
+                              planet.folderPath, moleculeSpecific, planet.surfacePressure, planet.surfaceTemperature,
                               int(planet.maxHeight / 100000), planet.heightList[1], planet.gravity,
                               planet.rangeMin, planet.rangeMax, ','.join(planet.moleculeList), expected, completed)
     openFile = open(filePath, 'wb')
@@ -469,7 +475,7 @@ def readPlanetProfileMolecule(name, layerNumber, length, moleculeName):
     exit()
 
 
-def readPlanetProfile(name, layerNumber, length, moleculeSpecific=False):
+def readPlanetProfile(name, layerNumber, length):
     folderPath = '%s/%s' % (profileDir, name)
     fileName = 'Layer %s:%s' % (layerNumber, length)
     filePath = '%s/%s.pyr' % (folderPath, fileName)
