@@ -3,13 +3,11 @@ import sys
 import urllib.request as urlrequest
 import urllib.error as urlexception
 from datetime import datetime
-import numpy as np
 
 
 cwd = os.getcwd()
 lineSep = os.linesep
 dataDir = '%s/data' % cwd
-curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
 profileDir = '/%s/profiles' % dataDir
 themeDir = '%s/themes' % cwd
@@ -25,7 +23,7 @@ class Theme:
         self.theme = value
         self.faceColor = None
         self.textColor = None
-        self.gridColor = None
+        self.gridList = []
         self.colorList = []
         self.loadTheme(self.theme)
 
@@ -36,6 +34,8 @@ class Theme:
     def loadTheme(self, value):
         fullPath = '%s/%s.pyr' % (themeDir, value)
         lines = openReturnLines(fullPath)
+        self.colorList = []
+        self.gridList = []
         for line in lines:
             cells = line.split(':')
             if cells[0] == 'colorList':
@@ -44,8 +44,8 @@ class Theme:
                 self.textColor = self.rgbTuple(cells[1])
             elif cells[0] == 'faceColor':
                 self.faceColor = self.rgbTuple(cells[1])
-            elif cells[0] == 'gridColor':
-                self.gridColor = self.rgbTuple(cells[1])
+            elif cells[0] == 'gridList':
+                self.gridList.append(self.rgbTuple(cells[1]))
 
     @property
     def listOfThemes(self):
@@ -132,7 +132,7 @@ def logToFile(text):
 def setupDir():
     print('Verifying data structure...', end='')
     sys.stdout.flush()
-    directoryList = [dataDir, curvesDir, profileDir, themeDir]
+    directoryList = [dataDir, profileDir, themeDir]
     fileList = []
     directoryCheck = True
     fileCheck = True
@@ -513,35 +513,6 @@ def writeDictListToFile(dictionary, fullPath, comments=None, mode='wb'):
     openFile.close()
 
 
-def getCurves(curveType, res):
-    curveDict = {}
-    resDirectory = '%s/res%s' % (curvesDir, res)
-    print('Retrieving %s curves...' % curveType, end='', flush=True)
-    if not os.path.isdir(resDirectory):
-        os.mkdir(resDirectory)
-    if curveType == 'voigt':
-        curveFilePath = '%s/voigt.pyr' % resDirectory
-    elif curveType == 'lorentz':
-        curveFilePath = '%s/lorentz.pyr' % resDirectory
-    elif curveType == 'gaussian':
-        curveFilePath = '%s/gaussian.pyr' % resDirectory
-    rows = openReturnLines(curveFilePath)
-    if rows:
-        for row in rows:
-            cells = row.strip().split(',')
-            key = cells.pop(0)
-            for i in range(0, len(cells) - 1):
-                if cells[i]:
-                    try:
-                        cells[i] = float(cells[i])
-                    except ValueError:
-                        print(cells[i])
-            cells.pop()
-            curveDict[key] = np.asarray(cells)
-    print('%s built from cache.' % len(curveDict))
-    return curveDict
-
-
 def getMolParamsFromHitranFile():
     rows = openReturnLines(molParamsFile)
     isotopeInfo = {}
@@ -742,18 +713,6 @@ def readMolParams(globalIso):
     gj = int(cells[6])
     molMass = float(cells[7])
     return [globalIso, shortName, moleculeNum, isoN, abundance, q296, gj, molMass]
-
-
-def writeCurveToFile(curveDict, curveName, res):
-    resDirectory = '%s/res%s' % (curvesDir, res)
-    resFile = '%s/%s.pyr' % (resDirectory, curveName)
-    openFile = open(resFile, 'ab')
-    for key in curveDict:
-        openFile.write(bytes('%s,' % key, 'utf-8'))
-        for value in curveDict[key]:
-            openFile.write(bytes('%s,' % value, 'utf-8'))
-        openFile.write(bytes('\n', 'utf-8'))
-    openFile.close()
 
 
 def displayAllMolecules():

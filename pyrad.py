@@ -622,21 +622,21 @@ def chooseThemeMenu(originalMenu):
     return menuChooseTheme
 
 
-def settingsMenu(previousMenu):
-    lowSetting = Entry('low (intensity > 1E-21)', nextFunction=changeSettings, functionParams=('low', previousMenu))
-    midSetting = Entry('mid (intensity > 1E-28)', nextFunction=changeSettings, functionParams=('mid', previousMenu))
-    hiSetting = Entry('hi (all absorption lines)', nextFunction=changeSettings, functionParams=('hi', previousMenu))
-    loadTheme = Entry('Change theme', nextMenu=chooseThemeMenu, functionParams=previousMenu)
-    menuSettings = Menu('Choose level of detail', [lowSetting, midSetting, hiSetting, loadTheme], previousMenu=previousMenu)
-    return menuSettings
-
-
 def menuMain():
     gasCellEntry = Entry('Gas cell simulator', nextMenu=gasCellMenu)
     atmosphereTransferEntry = Entry('Atmosphere transmission', nextMenu=chooseAtmTransferBuildProfile)
     planckPlotEntry = (Entry('Plot planck curves', nextMenu=menuPlanckType))
     mainMenu = Menu('Main menu', [gasCellEntry, atmosphereTransferEntry, planckPlotEntry])
     return mainMenu
+
+
+def settingsMenu(previousMenu=menuMain):
+    lowSetting = Entry('low (intensity > 1E-21)', nextFunction=changeSettings, functionParams=('low', previousMenu))
+    midSetting = Entry('mid (intensity > 1E-28)', nextFunction=changeSettings, functionParams=('mid', previousMenu))
+    hiSetting = Entry('hi (all absorption lines)', nextFunction=changeSettings, functionParams=('hi', previousMenu))
+    loadTheme = Entry('Change theme', nextMenu=chooseThemeMenu, functionParams=previousMenu)
+    menuSettings = Menu('Choose level of detail', [lowSetting, midSetting, hiSetting, loadTheme], previousMenu=previousMenu)
+    return menuSettings
 
 
 def duplicateObj(obj):

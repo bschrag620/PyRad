@@ -2,31 +2,38 @@
 # values are (r, g, b) [0-255]
 
 # dark grey
-textColor: 29, 29, 29
+textColor: 50, 50, 50
 
-# light grey
-gridColor: 204, 204, 204
+# greys
+gridList: 30, 30, 30
+gridList: 70, 70, 70
+gridList: 110, 110, 110
+gridList: 150, 150, 150
+gridList: 190, 190, 190
 
-# pale blue
-faceColor: 239, 244, 255
+# lighter gray
+faceColor: 215, 215, 215
 
-# dark purple
-colorList: 96, 60, 186
+# mid gray
+colorList: 140, 140, 140
 
 # light green
-colorList: 0, 163, 0
-
-# light purple
-colorList: 159, 0, 167
-
-# teal
-colorList: 0, 171, 169
-
-# dark red
-colorList: 185, 29, 171
-
-# dark green
-colorList: 30, 113, 69
+colorList: 60, 255, 130
 
 # orange
 colorList: 227, 162, 26
+
+# light blue
+colorList: 120, 120, 255
+
+# teal
+colorList: 50, 170, 170
+
+# light red/pink
+colorList: 255, 100, 100
+
+# light purple
+colorList: 190, 160, 190
+
+# yellow
+colorList: 255, 255, 100

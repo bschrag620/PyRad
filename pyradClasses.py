@@ -1317,14 +1317,21 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
     handles = []
     if height is None:
         height = planet.maxHeight / 100000
-    yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=verify, moleculeSpecific=True))
-    xAxis = np.linspace(planet.rangeMin, planet.rangeMax, len(yAxis))
+    yTotal = reduceRes(planet.processTransmission(height, direction=direction, verify=verify, moleculeSpecific=True))
+    xAxis = np.linspace(planet.rangeMin, planet.rangeMax, len(yTotal))
+    for temperature, color in zip(temperatureList, theme.gridList):
+        yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
+        fig, = plt.plot(xAxis, yAxis, linewidth=linewidth / 2, color=color,
+                        linestyle='--', label='%sK : %sWm-2' %
+                                             (temperature,
+                                              int(integrateSpectrum(yAxis, pi, res=res))))
+        handles.append(fig)
     planckAxis = pyradPlanck.planckWavenumber(xAxis, float(planet.surfaceTemperature))
     surfacePower = int(integrateSpectrum(planckAxis, pi, res=res))
-    powerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
+    powerSpectrum = int(integrateSpectrum(yTotal, pi, res=res))
     plt.title('Surface temp: %sK    Surface flux: %sWm-2    Effec temp: %sK'
               % (planet.surfaceTemperature, surfacePower, int(stefanB(powerSpectrum))))
-    fig, = plt.plot(xAxis, yAxis, linewidth=1, color=theme.colorList[0],
+    fig, = plt.plot(xAxis, yTotal, linewidth=linewidth, color=theme.colorList[0],
                     label='net flux: %sWm-2  netGHE: %sWm-2' % (powerSpectrum, surfacePower - powerSpectrum))
     handles.append(fig)
     tempName = planet.name
@@ -1338,15 +1345,8 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
             i += 1
         yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=False))
         tempPowerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
-        fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color,
+        fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color, alpha=.6,
                             label='%s effect : %sWm-2' % (planet.name, surfacePower - tempPowerSpectrum))
-        handles.append(fig)
-    for temperature, color in zip(temperatureList, theme.colorList):
-        yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
-        fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color,
-                        linestyle=':', label='%sK : %sWm-2' %
-                                             (temperature,
-                                              int(integrateSpectrum(yAxis, pi, res=res))))
         handles.append(fig)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()

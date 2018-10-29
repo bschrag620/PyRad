@@ -7,28 +7,33 @@
 faceColor: 29, 29, 29
 
 # light grey
-gridColor: 204, 204, 204
+gridList: 240, 240, 240
+gridList: 210, 210, 210
+gridList: 170, 170, 170
+gridList: 130, 130, 130
+gridList: 90, 90, 90
 
-# pale blue
-textColor: 239, 244, 255
-
-# pale blue
-colorList: 239, 244, 255
-
-# light purple
-colorList: 159, 0, 167
-
-# teal
-colorList: 0, 171, 169
-
-# dark red
-colorList: 185, 29, 171
+# light grey
+textColor: 240, 240, 240
+colorList: 240, 240, 240
 
 # dark green
-colorList: 30, 113, 69
+colorList: 30, 100, 30
 
-# orange
-colorList: 227, 162, 26
+# dark blue
+colorList: 0, 20, 110
 
-# light green
-colorList: 0, 163, 0
+# dark purple
+colorList: 70, 30, 70
+
+# dark red
+colorList: 100, 20, 20
+
+# dark teal
+colorList: 0, 80, 80
+
+# dark orange
+colorList: 130, 50, 0
+
+# light blue
+colorList: 0, 160, 160
