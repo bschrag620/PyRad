@@ -23,6 +23,7 @@ class Theme:
         self.theme = value
         self.faceColor = None
         self.textColor = None
+        self.backingColor = None
         self.gridList = []
         self.colorList = []
         self.loadTheme(self.theme)
@@ -46,6 +47,8 @@ class Theme:
                 self.faceColor = self.rgbTuple(cells[1])
             elif cells[0] == 'gridList':
                 self.gridList.append(self.rgbTuple(cells[1]))
+            elif cells[0] == 'backingColor':
+                self.backingColor = self.rgbTuple(cells[1])
 
     @property
     def listOfThemes(self):
@@ -194,6 +197,36 @@ def openReturnLines(fullPath):
     while lineList[0][0] == '#' and len(lineList) > 1:
         lineList.pop(0)
     return lineList
+
+
+def writePlanetProfileTransmittance(name, layer, processingTime, moleculeList, params):
+    folderPath = '%s/%s' % (profileDir, name)
+    if not os.path.isdir(folderPath):
+        os.mkdir(folderPath)
+    filePath = '%s/%s.pyr' % (folderPath, layer.name)
+    now = datetime.now()
+    openFile = open(filePath, 'wb')
+    text = '# created by PyRad v%s on %s.\n' % (VERSION, now.strftime("%Y-%m-%d %H:%M:%S"))
+    openFile.write(text.encode('utf-8'))
+    text = 'time: %ssecs\n'\
+           'depth: %s\n'\
+           'T: %s\n'\
+           'P: %s\n'\
+           'rangeMin: %s\n'\
+           'rangeMax: %s\n'\
+           'height: %s\n'\
+           'name: %s\n'\
+           'molecule list: %s\n'\
+           '# layer transmittance\n'\
+           % (int(processingTime), layer.depth, int(layer.T), layer.P, layer.rangeMin, layer.rangeMax, layer.height,
+              layer.name, ','.join(moleculeList))
+    openFile.write(text.encode('utf-8'))
+    for key in params:
+        text = '%s: %s\n' % (key, ','.join(map(str, params[key].tolist())))
+        openFile.write(text.encode('utf-8'))
+    openFile.close()
+    print('\t\t\t\t\t\t ||> %s.pyr' % layer.name, end='\r', flush=True)
+    return
 
 
 def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecific=False):
@@ -364,7 +397,7 @@ def profileLength(name):
                 return int(values[1])
 
 
-def profileWriteProgress(name, completed, expected, processingTime, moleculeSpecific, moleculeList):
+def profileWriteProgress(name, completed, expected, processingTime, moleculeSpecific, moleculeList, res):
     folderPath = '%s/%s' % (profileDir, name)
     fileName = 'profileProgress'
     filePath = '%s/%s.pyr' % (folderPath, fileName)
@@ -373,9 +406,10 @@ def profileWriteProgress(name, completed, expected, processingTime, moleculeSpec
            '# total processing time: %ssecs\n' \
            'molSpecific: %s\n' \
            'molList: %s\n' \
+           'res: %s\n' \
            'expected: %s\n' \
            'completed: %s' % (name, VERSION, int(processingTime),
-                              moleculeSpecific, ','.join(moleculeList), expected, completed)
+                              moleculeSpecific, ','.join(moleculeList), res, expected, completed)
     openFile = open(filePath, 'wb')
     openFile.write(text.encode('utf-8'))
     openFile.close()
@@ -423,7 +457,7 @@ def profileComplete(name):
     return False
 
 
-def profileWriteComplete(planet, completed, expected, processingTime, moleculeSpecific=False):
+def profileWriteComplete(planet, completed, expected, processingTime, res, moleculeSpecific=False):
     folderPath = '%s/%s' % (profileDir, planet.folderPath)
     fileName = 'profileComplete'
     filePath = '%s/%s.pyr' % (folderPath, fileName)
@@ -441,11 +475,12 @@ def profileWriteComplete(planet, completed, expected, processingTime, moleculeSp
            'rangeMin: %s\n' \
            'rangeMax: %s\n' \
            'molList: %s\n' \
+           'res: %s\n' \
            'expected: %s\n' \
            'completed: %s' % (planet.folderPath, time.strftime("%Y-%m-%d %H:%M:%S"), VERSION, int(processingTime),
                               planet.folderPath, moleculeSpecific, planet.surfacePressure, planet.surfaceTemperature,
                               int(planet.maxHeight / 100000), planet.heightList[1], planet.gravity,
-                              planet.rangeMin, planet.rangeMax, ','.join(planet.moleculeList), expected, completed)
+                              planet.rangeMin, planet.rangeMax, ','.join(planet.moleculeList), res, expected, completed)
     openFile = open(filePath, 'wb')
     openFile.write(text.encode('utf-8'))
     openFile.close()
@@ -494,6 +529,35 @@ def readPlanetProfile(name, layerNumber, length):
             for value in absList:
                 absCoefList.append(float(value))
             layerDict['absCoef'] = absCoefList
+        elif keyValue[0].strip() == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
+            layerDict[keyValue[0]] = int(keyValue[1])
+        elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth':
+            layerDict[keyValue[0]] = float(keyValue[1])
+        else:
+            pass
+    return layerDict
+
+
+def readPlanetProfileTransmittance(name, layerNumber, length):
+    folderPath = '%s/%s' % (profileDir, name)
+    fileName = 'Layer %s:%s' % (layerNumber, length)
+    filePath = '%s/%s.pyr' % (folderPath, fileName)
+    lines = openReturnLines(filePath)
+    print('Reading profile from %s...                                ' % fileName, end='\r', flush=True)
+    layerDict = {'molecule list': []}
+    for line in lines:
+        keyValue = line.split(':')
+        if line[0] == '#':
+            pass
+        elif keyValue[0].strip() == 'name':
+            layerDict[keyValue[0]] = keyValue[1].strip()
+        elif 'transmittance' in keyValue[0]:
+            trans = keyValue[1].split(',')
+            transList = []
+            for value in trans:
+                transList.append(float(value))
+            key = keyValue[0].split(' ')[0]
+            layerDict[key] = transList
         elif keyValue[0].strip() == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
             layerDict[keyValue[0]] = int(keyValue[1])
         elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth':

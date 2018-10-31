@@ -13,27 +13,32 @@ gridList: 170, 170, 170
 gridList: 130, 130, 130
 gridList: 90, 90, 90
 
+# backingcolor used for backing the composite plots. For composite plots, the other colors alphas will be adjusted down,
+# so they will become a tint of the backingcolor. backingColor should be an grayscale/white/black that will stand out
+# on the faceColor well.
+
+backingColor: 200, 200, 200
+
 # light grey
 textColor: 240, 240, 240
-colorList: 240, 240, 240
 
-# dark green
-colorList: 30, 100, 30
+# mint green
+colorList: 120, 255, 120
 
 # dark blue
-colorList: 0, 20, 110
+colorList: 0, 125, 255
 
 # dark purple
-colorList: 70, 30, 70
+colorList: 180, 65, 180
 
 # dark red
-colorList: 100, 20, 20
+colorList: 255, 50, 50
 
 # dark teal
-colorList: 0, 80, 80
+colorList: 60, 170, 170
 
-# dark orange
-colorList: 130, 50, 0
+# orange
+colorList: 255, 95, 0
 
-# light blue
-colorList: 0, 160, 160
+# yellow
+colorList: 255, 255, 0

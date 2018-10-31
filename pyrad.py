@@ -145,7 +145,7 @@ def createPlot(params):
 def plotPlanetSpectrum(values):
     pList = []
     for p in values['profiles']:
-        planet = pyradClasses.loadEmptyPlanet(p.name)
+        planet = pyradClasses.loadEmptyPlanet2(p.name)
         pList.append(planet)
     if values['height'] == -2.71828:
         pyradClasses.plotPlanetSpectrum(pList, direction=values['direction'], verify=False)
@@ -155,7 +155,7 @@ def plotPlanetSpectrum(values):
 
 
 def plotPlanetSpectrumComponents(values):
-    planet = pyradClasses.loadEmptyPlanet(values['profiles'][0].name)
+    planet = pyradClasses.loadEmptyPlanet2(values['profiles'][0].name)
     if values['height'] == -2.71828:
         pyradClasses.plotPlanetAndComponents(planet, direction=values['direction'], verify=False)
     else:
@@ -578,9 +578,18 @@ def buildProfile(profileList):
         moleculeSpecific = pyradClasses.yesOrNo("Store data by individual molecule? Doesn't require more time, "
                                                 "just hard drive space %s:" % util.limeText('(y/n)'))
         overwrite = True
+        progress, time = util.profileProgress(planet.folderPath)
+        print('progress: %s' % progress)
         if util.profileComplete(planet.folderPath):
             overwrite = pyradClasses.yesOrNo("Data for this profile and setting seems to exist.\n"
                                              "Do you wish to overwrite it? %s" % util.limeText('(y/n)'))
+        elif progress:
+            resume = pyradClasses.yesOrNo('Partial data exists for this setting, do you wish to resume? %s' % util.limeText('(y/n)'))
+            if not resume:
+                overwrite = pyradClasses.yesOrNo("Are you sure, choosing yes will erase all previous data.\n"
+                                                 "Do you wish to overwrite it? %s" % util.limeText('(y/n)'))
+            else:
+                planet.processLayers(verify=False, moleculeSpecific=moleculeSpecific)
         if overwrite:
             util.emptyProfileDirectory(planet.folderPath)
             planet.processLayers(verify=False, moleculeSpecific=moleculeSpecific)

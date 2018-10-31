@@ -1,6 +1,6 @@
 import pyradClasses
 
-planet = pyradClasses.createCustomPlanet('earthsimplemolspec narrow')
+planet = pyradClasses.loadEmptyPlanet2('earthsimplemolspec narrow low')
 
 
 #planet2 = pyradClasses.createCustomPlanet('marssimple')
