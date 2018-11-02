@@ -1131,7 +1131,7 @@ class Planet:
     def loadProfile(self, verify=True, moleculeSpecific=False):
         if not utils.profileComplete(self.folderPath):
             self.processLayers(verify=verify, moleculeSpecific=moleculeSpecific)
-        loadEmptyPlanet(self.folderPath, self, moleculeSpecific=moleculeSpecific, verify=verify)
+        loadEmptyPlanet(self.folderPath, self, verify=verify)
 
     def processTransmission(self, height, direction='down', verify=True, moleculeSpecific=False):
         if not self.progressProfileLoaded:
