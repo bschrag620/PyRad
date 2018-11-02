@@ -1112,12 +1112,12 @@ class Planet:
                 molecule.concentration = self.compositionAtHeight(layer.meanHeight, molecule)
             layer.createCrossSection()
             processTime = time.time() - layerProcessTimeStart
-            #utils.writePlanetProfile(self.folderPath, layer, processTime, self.moleculeList, moleculeSpecific=moleculeSpecific)
-            params = {'layer transmittance': reduceRes(layer.transmittance, res)}
-            for molecule in layer:
-                key = '%s transmittance' % molecule.name
-                params[key] = reduceRes(molecule.transmittance,res)
-            utils.writePlanetProfileTransmittance(self.folderPath, layer, processTime, self.moleculeList, params)
+            utils.writePlanetProfile(self.folderPath, layer, processTime, self.moleculeList, moleculeSpecific=moleculeSpecific)
+            #params = {'layer transmittance': reduceRes(layer.transmittance, res)}
+            #for molecule in layer:
+            #    key = '%s transmittance' % molecule.name
+            #    params[key] = reduceRes(molecule.transmittance,res)
+            #utils.writePlanetProfileTransmittance(self.folderPath, layer, processTime, self.moleculeList, params)
             totalProcessTime += processTime
             utils.profileWriteProgress(self.folderPath, i, len(self.heightList), totalProcessTime,
                                        moleculeSpecific, self.moleculeList, res)
@@ -1383,9 +1383,9 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
     handles = []
     if height is None:
         height = planet.maxHeight / 100000
-    transmittanceValues = readTransmittance(planet, height, direction=direction)
-    yTotal = transmittanceValues['layer']
-    #yTotal = reduceRes(planet.processTransmission(height, direction=direction, verify=verify, moleculeSpecific=True))
+    #transmittanceValues = readTransmittance(planet, height, direction=direction)
+    #yTotal = transmittanceValues['layer']
+    yTotal = reduceRes(planet.processTransmission(height, direction=direction, verify=verify, moleculeSpecific=True))
     xAxis = np.linspace(planet.rangeMin, planet.rangeMax, len(yTotal))
     for temperature, color in zip(temperatureList, theme.gridList):
         yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
@@ -1407,13 +1407,13 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
     for molecule, color in zip(planet.moleculeList, theme.colorList):
         print('processing %s in atmosphere' % molecule)
 
-        '''planet.name = molecule
+        planet.name = molecule
         i = 1
         for layer in planet.atmosphere:
             layer.absorptionCoefficient = np.asarray(utils.readPlanetProfileMolecule(tempName, i, length, molecule))
             i += 1
-        yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=False))'''
-        yAxis = transmittanceValues[molecule]
+        yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=False))
+        #yAxis = transmittanceValues[molecule]
         tempPowerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
         fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color, alpha=.6,
                             label='%s effect : %sWm-2' % (molecule, surfacePower - tempPowerSpectrum))
