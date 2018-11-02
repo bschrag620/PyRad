@@ -8,7 +8,15 @@ On Mac: https://penandpants.com/2012/02/24/install-python/
 
 
 All absorption lines, intensities, and relevant info are downloaded from hitran.org and stored locally.
-For a more comprehensive (ie professional package), be sure to check out HAPI (Hitran API) http://hitran.org/hapi. It is free and open source as well. This project has been more personal opportunity to test and improve my own understanding of radiative transfer through gases. The final version of this project should support modeling radiative transfer through any atmospheric composition. Currently, it serves as a gas cell simulator, similar to http://www.spectralcalc.com/calc/spectralcalc.php 
+For a more comprehensive (ie professional package), be sure to check out HAPI (Hitran API) http://hitran.org/hapi. It is free and open source as well. This project has been more personal opportunity to test and improve my own understanding of radiative transfer through gases. 
+The final version of this project should support modeling radiative transfer through any atmospheric composition. Currently, it serves as a gas cell simulator, similar to http://www.spectralcalc.com/calc/spectralcalc.php 
+
+Version 3:
+Big jump happening all at once here, but 3.0 is live now. PyRad is officially a line-by-line, radiatvie transfer model for an atmosphere. 
+-Interactive mode allows access to gas cell simulator, plotting of planck curves (by wavelength, wavenumber, or Hz), and processing and plotting of radiative transfer through an atmosphere
+-profiles can be created for custom atmospheres and saved in the PyRad folder. Be sure to use a .pyr extension
+-theme files for changing plot colors can be created and added to the theme folder. Again, use a .pyr extension so they are seen
+-see below for details on how to create a custom atmosphere
 
 Version 1.5:
 -Release of interactive mode. Simply run the pyrad.py file to access the menu.
@@ -26,3 +34,6 @@ HAPI Interface - R.V. Kochanov, I.E. Gordon, L.S. Rothman, P. Wcislo, C. Hill, J
 Tom Marshall of GATS-Inc.com, for providing guidance in resolving personal ignorances of units.
 
 Eli Rabett, for his patience in helping me understand concepts that I have not received an education on previously.
+
+
+Creating a custom atmosphere profile/planet:
