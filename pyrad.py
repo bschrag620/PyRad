@@ -155,7 +155,7 @@ def plotPlanetSpectrum(values):
 
 
 def plotPlanetSpectrumComponents(values):
-    planet = pyradClasses.loadEmptyPlanet2(values['profiles'][0].name)
+    planet = pyradClasses.loadEmptyPlanet(values['profiles'][0].name)
     if values['height'] == -2.71828:
         pyradClasses.plotPlanetAndComponents(planet, direction=values['direction'], verify=False)
     else:

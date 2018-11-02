@@ -1315,7 +1315,7 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
     handles = []
     if not rangeMax:
         xAxis = layer.xAxis
-    for temperature, color in zip(planckTemperatureList, theme.colorList):
+    for temperature, color in zip(planckTemperatureList, theme.gridList):
         yAxis = planckFunction(xAxis, float(temperature))
         fig, = plt.plot(xAxis, yAxis, linewidth=.75, color=color,
                         linestyle=':', label='%sK : %sWm-2' %
@@ -1359,7 +1359,7 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=(
         fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color,
                         label='%s : %sWm-2, eff : %sK' % (planet.name, powerSpectrum, effTemp))
         handles.append(fig)
-    for temperature, color in zip(temperatureList, theme.colorList):
+    for temperature, color in zip(temperatureList, theme.gridList):
         yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
         fig, = plt.plot(xAxis, yAxis, linewidth=1, color=color,
                         linestyle=':', label='%sK : %sWm-2' %
