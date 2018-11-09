@@ -22,9 +22,9 @@ settings = utils.Settings('low')
 theme = utils.Theme()
 
 
-def reduceRes(array, lumpTo=1.0):
-    n = int(lumpTo / settings.baseRes)
-    length = int(len(array) * settings.baseRes / lumpTo)
+def reduceRes(array, finalRes=1.0):
+    n = int(finalRes / settings.baseRes)
+    length = int(len(array) * settings.baseRes / finalRes)
     newArray = np.zeros(length)
     for m in range(0, length):
         for i in range(0, n):
@@ -41,68 +41,6 @@ def returnHMS(time):
     minutes = int((time - hours * 3600) / 60)
     seconds = time - hours * 3600 - minutes * 60
     return hours, minutes, seconds
-
-
-def loadEmptyPlanet2(folderPath, verify=False):
-    values = utils.readCompleteProfile(folderPath)
-    planet = Planet(values['name'], float(values['surfacePressure']), int(values['surfaceTemperature']),
-                    float(values['maxHeight']),
-                    rangeMin=int(values['rangeMin']), rangeMax=int(values['rangeMax']),
-                    initialThickness=int(float(values['initialDepth'])),
-                    gravity=float(values['gravity']))
-    for mol in values['molList'].split(','):
-        planet.moleculeList.append(mol)
-    #if utils.profileComplete(folderPath):
-    #    fileLength = utils.profileLength(folderPath)
-    #else:
-    #    planet.processLayers(verify=verify)
-    return planet
-
-
-def readTransmittance(planet, height, direction):
-    height = height * 100000
-    fileLength = utils.profileLength(planet.name)
-    moleculeList = planet.moleculeList
-    values = {}
-    xAxis = np.linspace(planet.rangeMin, planet.rangeMax, int(planet.rangeMax - planet.rangeMin) / planet.res)
-    if direction == 'down':
-        values['layer'] = pyradPlanck.planckWavenumber(xAxis, planet.surfaceTemperature)
-        fileArray = list(range(1, fileLength + 1))
-        print(fileArray)
-    else:
-        values['layer'] = pyradPlanck.planckWavenumber(xAxis, 2.7)
-        fileArray = list(reversed(range(1, fileLength + 1)))
-    for molecule in moleculeList:
-        values[molecule] = np.copy(values['layer'])
-    i = 0
-    layer = utils.readPlanetProfileTransmittance(planet.name, fileArray[i], fileLength)
-    meanHeight = layer['height'] + .5 * layer['depth']
-    if direction == 'down':
-        while meanHeight < height and i < len(fileArray) - 1:
-            transmittance = np.asarray(layer['layer'])
-            transmitted = values['layer'] * transmittance
-            emittance = 1 - transmittance
-            emitted = emittance * pyradPlanck.planckWavenumber(xAxis, layer['T'])
-            values['layer'] = transmitted + emitted
-            for molecule in moleculeList:
-                transmittance = np.asarray(layer[molecule])
-                transmitted = values[molecule] * transmittance
-                emittance = 1 - transmittance
-                emitted = emittance * pyradPlanck.planckWavenumber(xAxis, layer['T'])
-                values[molecule] = transmitted + emitted
-            i += 1
-            layer = utils.readPlanetProfileTransmittance(planet.name, fileArray[i], fileLength)
-            meanHeight = layer['height'] + .5 * layer['depth']
-    else:
-        while meanHeight > height and i < fileLength + 1:
-            transmittance = np.asarray(layer['layer'])
-            values['layer'] = values['layer'] * transmittance
-            for molecule in moleculeList:
-                values[molecule] = values[molecule] * transmittance
-            i += 1
-            layer = utils.readPlanetProfileTransmittance(planet.name, fileArray[i], fileLength)
-            meanHeight = layer['height'] + .5 * layer['depth']
-    return values
 
 
 def loadEmptyPlanet(folderPath, planet=None, verify=False):
@@ -128,6 +66,54 @@ def loadEmptyPlanet(folderPath, planet=None, verify=False):
     print('')
     planet.progressProfileLoaded = True
     return planet
+
+
+def processTransmissionBySingleLayer(folderPath, res=1):
+    #first process transmission upward. Need to get initial values, mostly just for surface temp
+    values = utils.readCompleteProfile(folderPath)
+    planet = Planet(values['name'], float(values['surfacePressure']), int(values['surfaceTemperature']),
+                    float(values['maxHeight']),
+                    rangeMin=int(values['rangeMin']), rangeMax=int(values['rangeMax']),
+                    initialThickness=int(float(values['initialDepth'])),
+                    gravity=float(values['gravity']), res=int(float(values['res'])))
+    for mol in values['molList'].split(','):
+        planet.moleculeList.append(mol)
+
+    # now, 1 file at a time, open it, read values, write the transmission at a reduced res, to save space. It will be
+    # written in key: value style, with the key being the mean height of the layer. This will allow for easy lookup
+    # for values.
+    # Start by process the transmission, looking down, ie process surface transmission 1 --> top
+    xAxis = None
+    fileLength = utils.profileLength(folderPath)
+    for i in range(1, fileLength + 1):
+        lP = utils.readPlanetProfile(folderPath, i, fileLength)
+        layer = Layer(lP['depth'], lP['T'], lP['P'], lP['rangeMin'], lP['rangeMax'], height=lP['height'],
+                      name=lP['name'])
+        layer.absorptionCoefficient = np.asarray(lP['absCoef'])
+        layer.progressAbsCoef = True
+
+        # if this is the first time through the loop, create an xAxis with range and steps the same as the absCoef
+        # and intitiate the surfaceSpectrum
+        if xAxis is None:
+            xAxis = np.linspace(planet.rangeMin, planet.rangeMax, len(layer.absorptionCoefficient))
+            surfaceSpectrum = pyradPlanck.planckWavenumber(xAxis, planet.surfaceTemperature)
+            spectrumDict = {'layer': reduceRes(surfaceSpectrum, finalRes=res)}
+            for molecule in planet.moleculeList:
+                spectrumDict[molecule] = reduceRes(surfaceSpectrum, finalRes=res)
+            utils.writePlanetTransmission(folderPath, 0, spectrumDict, 'up')
+
+        nextSpectrum = layer.transmission(surfaceSpectrum)
+        spectrumDict = {'layer': reduceRes(nextSpectrum, finalRes=res)}
+        #for molecule in planet.moleculeList:
+        #    molAbsCoef = utils.readPlanetProfileMolecule(folderPath, i, fileLength, molecule)
+        #    layer.absorptionCoefficient = np.asarray(molAbsCoef)
+        #    spectrumDict[molecule] = reduceRes(layer.transmission(surfaceSpectrum), finalRes=res)
+        utils.writePlanetTransmission(folderPath, layer.meanHeight, spectrumDict, 'up')
+        surfaceSpectrum = nextSpectrum
+
+    # with transmission from surface upward processed, do the same in reverse to get the transmission toward the surface
+    # initial spetrum will be 2.7K for CMB
+
 
 
 def createCustomPlanet(name):
@@ -706,7 +692,7 @@ class Layer(list):
         if not dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
-            self.resolution = max(10**int(np.log10((self.P / 1013.25))) * .01, utils.BASE_RESOLUTION)
+            self.resolution = max(self.P / 1013.25 * .01, utils.BASE_RESOLUTION)
         if not atmosphere:
             if not Layer.hasAtmosphere:
                 self.atmosphere = Atmosphere('generic')
@@ -796,7 +782,10 @@ class Layer(list):
     def molarMass(self):
         mass = 0
         for mol in self:
-            mass += mol.molarMass * mol.concentration
+            if mol.name == 'h2o':
+                pass
+            else:
+                mass += mol.molarMass * mol.concentration
         return mass
 
     @property
@@ -842,7 +831,7 @@ class Layer(list):
         if not self.dynamicResolution:
             self.resolution = utils.BASE_RESOLUTION
         else:
-            self.resolution = max(10**int(np.log10((self.P / 1013.25))) * .01, utils.BASE_RESOLUTION)
+            self.resolution = max(self.P / 1013.25 * .01, utils.BASE_RESOLUTION)
         resetData(self)
 
     def changeDepth(self, depth):
@@ -937,20 +926,20 @@ class Atmosphere(list):
         return temperature
 
     def pressureAtHeight(self, height):
-        height = height / 100
         ruleList = self.planet.returnApplicableRules(height, 'temperature')
         if len(ruleList) > 1:
             print('Multiple rules found for height %s: %s' % (height, ruleList))
         rule = ruleList[0]
         temperature = self.temperatureAtHeight(height)
+        pressurePa = rule.basePressure * 100
+        rateInMeters = rule.rate * 100
         if rule.rate != 0:
-            pressure = rule.basePressure * (rule.baseValue / temperature) ** \
-                  (self.planet.gravity * self.planet.molarMass / R / rule.rate)
+            pressure = pressurePa * (rule.baseValue / temperature) ** \
+                  (self.planet.gravity * self.planet.molarMass / R / rateInMeters)
         else:
-            pressure = rule.basePressure * \
-                       np.exp(-self.planet.gravity * self.planet.molarMass *
-                              (height - rule.baseHeight) / R / rule.baseValue)
-        return pressure
+            changeInHeightMeters = (height - rule.baseHeight) / 100
+            pressure = pressurePa * np.exp(-self.planet.gravity * self.planet.molarMass * changeInHeightMeters / R / rule.baseValue)
+        return pressure / 100
 
     def compositionAtHeight(self, height, molecule):
         ruleList = self.planet.returnApplicableRules(height, 'composition')
@@ -1113,11 +1102,6 @@ class Planet:
             layer.createCrossSection()
             processTime = time.time() - layerProcessTimeStart
             utils.writePlanetProfile(self.folderPath, layer, processTime, self.moleculeList, moleculeSpecific=moleculeSpecific)
-            #params = {'layer transmittance': reduceRes(layer.transmittance, res)}
-            #for molecule in layer:
-            #    key = '%s transmittance' % molecule.name
-            #    params[key] = reduceRes(molecule.transmittance,res)
-            #utils.writePlanetProfileTransmittance(self.folderPath, layer, processTime, self.moleculeList, params)
             totalProcessTime += processTime
             utils.profileWriteProgress(self.folderPath, i, len(self.heightList), totalProcessTime,
                                        moleculeSpecific, self.moleculeList, res)
@@ -1224,6 +1208,7 @@ class AtmosphereRule:
             if rule.finalHeight > height and rule.molecule == molecule:
                 height = rule.finalHeight
                 concentration = rule.finalValue
+                pressure = self.parent.pressureAtHeight(height)
         return height, concentration, pressure
 
     def setBaseValues(self, ruleType, molecule):
@@ -1347,25 +1332,36 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=(
     plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
     handles = []
     heightFlag = True
+
     if height is None:
         heightFlag = False
-    for planet, color in zip(planets, theme.colorList):
-        if not heightFlag:
-            height = planet.maxHeight / 100000
-        yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=verify))
-        xAxis = np.linspace(planet.rangeMin, planet.rangeMax, len(yAxis))
-        powerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
-        effTemp = int(stefanB(powerSpectrum))
-        fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color,
-                        label='%s : %sWm-2, eff : %sK' % (planet.name, powerSpectrum, effTemp))
-        handles.append(fig)
+    p = loadEmptyPlanet(planets[0])
+    if not heightFlag:
+        height = p.maxHeight / 100000
+
+    totalY = reduceRes(p.processTransmission(height, direction=direction, verify=verify))
+    xAxis = np.linspace(p.rangeMin, p.rangeMax, len(totalY))
+
     for temperature, color in zip(temperatureList, theme.gridList):
         yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
-        fig, = plt.plot(xAxis, yAxis, linewidth=1, color=color,
-                        linestyle=':', label='%sK : %sWm-2' %
-                                             (temperature,
-                                              int(integrateSpectrum(yAxis, pi, res=res))))
+        fig, = plt.plot(xAxis, yAxis, linewidth=1, color=color, linestyle=':', label='%sK : %sWm-2' % (temperature, round(integrateSpectrum(yAxis, pi, res=res), 2)))
         handles.append(fig)
+
+    powerSpectrum = round(integrateSpectrum(totalY, pi, res=res), 2)
+    effTemp = int(stefanB(powerSpectrum))
+    fig, = plt.plot(xAxis, totalY, linewidth=linewidth, color=theme.colorList[0], label='%s : %sWm-2, eff : %sK' % (p.name, powerSpectrum, effTemp))
+    handles.append(fig)
+
+    for planet, color in zip(planets[1:], theme.colorList[1:]):
+        p = loadEmptyPlanet(planet)
+        if not heightFlag:
+            height = p.maxHeight / 100000
+        totalY = reduceRes(p.processTransmission(height, direction=direction, verify=verify))
+        powerSpectrum = round(integrateSpectrum(totalY, pi, res=res), 2)
+        effTemp = int(stefanB(powerSpectrum))
+        fig, = plt.plot(xAxis, totalY, linewidth=linewidth, color=color, label='%s : %sWm-2, eff : %sK' % (p.name, powerSpectrum, effTemp))
+        handles.append(fig)
+
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
     plt.setp(text, color=theme.textColor)

@@ -18,50 +18,66 @@ class Menu:
         self.multiChoice = multiChoice
 
     def displayMenu(self):
-        if self.multiChoice:
-            return self.displayMultiChoiceMenu()
-        else:
-            titleStr = '   %s   detail: %s' % (self.title, pyradClasses.settings.setting)
-            while len(titleStr) < 60:
-                titleStr += ' '
-            print('\n%s' % util.underlineCyan(titleStr))
-            i = 1
-            validEntry = ['x']
-            for entry in self.entries:
-                validEntry.append(str(i))
-                print(' %s)   %s' % (util.magentaText(i), entry.name))
-                i += 1
-            text = ' %s)   Exit' % util.magentaText('X')
-            if 'Main' not in self.title:
-                text += '\t%s)  Back' % util.magentaText('B')
-                validEntry.append('b')
-            if self.title != 'Choose level of detail':
-                text += '\t%s)  Settings' % util.magentaText('S')
-                validEntry.append('s')
-            print(text)
-            validChoice = False
-            while not validChoice:
-                userInput = input('Choose an option: ')
-                if userInput.lower() == 'x':
-                    print('Goodbye')
-                    exit(1)
-                elif userInput.lower() == 'b' and 'main' not in self.title.lower():
-                    if type(self.previousMenu) == Menu:
-                        return self.previousMenu
-                    return self.previousMenu()
-                elif userInput.lower() == 's' and 'settings' not in self.title.lower():
-                    return settingsMenu(previousMenu=self)
-                elif userInput in validEntry:
-                    userChoice = self.entries[int(userInput) - 1]
-                    if userChoice.nextFunction:
-                        return userChoice.nextFunction(userChoice.functionParams)
-                    elif userChoice.nextMenu:
-                        return userChoice.nextMenu(userChoice.functionParams)
+        titleStr = '   %s   detail: %s' % (self.title, pyradClasses.settings.setting)
+        while len(titleStr) < 60:
+            titleStr += ' '
+        print('\n%s' % util.underlineCyan(titleStr))
+        i = 1
+        validEntry = ['x']
+        for entry in self.entries:
+            validEntry.append(str(i))
+            print(' %s)   %s' % (util.magentaText(i), entry.name))
+            i += 1
+        text = ' %s)   Exit' % util.magentaText('X')
+        if 'Main' not in self.title:
+            text += '\t%s)  Back' % util.magentaText('B')
+            validEntry.append('b')
+        if self.title != 'Choose level of detail':
+            text += '\t%s)  Settings' % util.magentaText('S')
+            validEntry.append('s')
+        print(text)
+        validChoice = False
+        while not validChoice:
+            userInput = input('Choose an option: ')
+            if userInput.lower() == 'x':
+                print('Goodbye')
+                exit(1)
+            elif userInput.lower() == 'b' and 'main' not in self.title.lower():
+                if type(self.previousMenu) == Menu:
+                    return self.previousMenu
+                return self.previousMenu()
+            elif userInput.lower() == 's' and 'settings' not in self.title.lower():
+                return settingsMenu(previousMenu=self)
+            elif not self.multiChoice and userInput in validEntry:
+                userChoice = self.entries[int(userInput) - 1]
+                if userChoice.nextFunction:
+                    return userChoice.nextFunction(userChoice.functionParams)
+                elif userChoice.nextMenu:
+                    return userChoice.nextMenu(userChoice.functionParams)
+            elif self.multiChoice:
+                inputs = userInput.split(',')
+                allValid = True
+                userChoices = []
+                for i in inputs:
+                    if i.strip() not in validEntry:
+                        allValid = False
+                    else:
+                        userChoices.append(self.entries[int(i) - 1])
+                if allValid:
+                    if userChoices[0].nextFunction:
+                        nextFunction = userChoices[0].nextFunction
+                        return nextFunction(userChoices)
+                    else:
+                        nextMenu = userChoices[0].nextMenu
+                        tempMenu = nextMenu(userChoices)
+                        return tempMenu
                 else:
                     print('Invalid entry. Try again.')
+            else:
+                print('Invalid entry. Try again.')
 
     def displayMultiChoiceMenu(self):
-        titleStr = '\t%s\tdetail: %s' % (self.title, pyradClasses.settings.setting)
+        titleStr = '%sdetail: %s' % (self.title, pyradClasses.settings.setting)
         while len(titleStr) < 60:
             titleStr += ' '
         print('\n%s' % util.underlineCyan(titleStr))
@@ -145,8 +161,7 @@ def createPlot(params):
 def plotPlanetSpectrum(values):
     pList = []
     for p in values['profiles']:
-        planet = pyradClasses.loadEmptyPlanet(p.name)
-        pList.append(planet)
+        pList.append(p.name)
     if values['height'] == -2.71828:
         pyradClasses.plotPlanetSpectrum(pList, direction=values['direction'], verify=False)
     else:
@@ -590,6 +605,7 @@ def buildProfile(profileList):
                                                  "Do you wish to overwrite it? %s" % util.limeText('(y/n)'))
             else:
                 planet.processLayers(verify=False, moleculeSpecific=moleculeSpecific)
+                overwrite = False
         if overwrite:
             util.emptyProfileDirectory(planet.folderPath)
             planet.processLayers(verify=False, moleculeSpecific=moleculeSpecific)

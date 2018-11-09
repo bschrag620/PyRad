@@ -84,7 +84,7 @@ class Settings:
         if self.setting == 'low':
             return 1E-21
         elif self.setting == 'mid':
-            return 1E-28
+            return 1E-24
         elif self.setting == 'hi':
             return 0.0
 
@@ -187,8 +187,7 @@ def writeTheme(fullPath):
 
 def openReturnLines(fullPath):
     if not os.path.isfile(fullPath):
-        print('file not found %s' % fullPath)
-        exit()
+        return False
     openFile = open(fullPath)
     lineList = openFile.readlines()
     openFile.close()
@@ -197,36 +196,6 @@ def openReturnLines(fullPath):
     while lineList[0][0] == '#' and len(lineList) > 1:
         lineList.pop(0)
     return lineList
-
-
-def writePlanetProfileTransmittance(name, layer, processingTime, moleculeList, params):
-    folderPath = '%s/%s' % (profileDir, name)
-    if not os.path.isdir(folderPath):
-        os.mkdir(folderPath)
-    filePath = '%s/%s.pyr' % (folderPath, layer.name)
-    now = datetime.now()
-    openFile = open(filePath, 'wb')
-    text = '# created by PyRad v%s on %s.\n' % (VERSION, now.strftime("%Y-%m-%d %H:%M:%S"))
-    openFile.write(text.encode('utf-8'))
-    text = 'time: %ssecs\n'\
-           'depth: %s\n'\
-           'T: %s\n'\
-           'P: %s\n'\
-           'rangeMin: %s\n'\
-           'rangeMax: %s\n'\
-           'height: %s\n'\
-           'name: %s\n'\
-           'molecule list: %s\n'\
-           '# layer transmittance\n'\
-           % (int(processingTime), layer.depth, int(layer.T), layer.P, layer.rangeMin, layer.rangeMax, layer.height,
-              layer.name, ','.join(moleculeList))
-    openFile.write(text.encode('utf-8'))
-    for key in params:
-        text = '%s: %s\n' % (key, ','.join(map(str, params[key].tolist())))
-        openFile.write(text.encode('utf-8'))
-    openFile.close()
-    print('\t\t\t\t\t\t ||> %s.pyr' % layer.name, end='\r', flush=True)
-    return
 
 
 def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecific=False):
@@ -260,6 +229,18 @@ def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecif
             openFile.write(text2.encode('utf-8'))
     openFile.close()
     print('\t\t\t\t\t\t ||> %s.pyr' % layer.name, end='\r', flush=True)
+    return
+
+
+def writePlanetTransmission(name, height, values, direction):
+    folderPath = '%s/%s' % (profileDir, name)
+    filePath = '%s/%s.pyr' % (folderPath, 'transmission %s' % direction)
+    openfile = open(filePath, 'ab')
+    print('test: writing to %s' % filePath)
+    for item in values:
+        text = '%s: %s: %s\n' % (height, item, ','.join(map(str, values[item])))
+        openfile.write(text.encode('utf-8'))
+    openfile.close()
     return
 
 
@@ -515,6 +496,13 @@ def readPlanetProfile(name, layerNumber, length):
     fileName = 'Layer %s:%s' % (layerNumber, length)
     filePath = '%s/%s.pyr' % (folderPath, fileName)
     lines = openReturnLines(filePath)
+    if not lines:
+        fileName = 'Layer %s_%s' % (layerNumber, length)
+        filePath = '%s/%s.pyr' % (folderPath, fileName)
+        lines = openReturnLines(filePath)
+        if not lines:
+            print('cant find layer file %s' % filePath)
+            exit()
     print('Reading profile from %s...                                ' % fileName, end='\r', flush=True)
     layerDict = {'molecule list': []}
     for line in lines:
@@ -529,35 +517,6 @@ def readPlanetProfile(name, layerNumber, length):
             for value in absList:
                 absCoefList.append(float(value))
             layerDict['absCoef'] = absCoefList
-        elif keyValue[0].strip() == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
-            layerDict[keyValue[0]] = int(keyValue[1])
-        elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth':
-            layerDict[keyValue[0]] = float(keyValue[1])
-        else:
-            pass
-    return layerDict
-
-
-def readPlanetProfileTransmittance(name, layerNumber, length):
-    folderPath = '%s/%s' % (profileDir, name)
-    fileName = 'Layer %s:%s' % (layerNumber, length)
-    filePath = '%s/%s.pyr' % (folderPath, fileName)
-    lines = openReturnLines(filePath)
-    print('Reading profile from %s...                                ' % fileName, end='\r', flush=True)
-    layerDict = {'molecule list': []}
-    for line in lines:
-        keyValue = line.split(':')
-        if line[0] == '#':
-            pass
-        elif keyValue[0].strip() == 'name':
-            layerDict[keyValue[0]] = keyValue[1].strip()
-        elif 'transmittance' in keyValue[0]:
-            trans = keyValue[1].split(',')
-            transList = []
-            for value in trans:
-                transList.append(float(value))
-            key = keyValue[0].split(' ')[0]
-            layerDict[key] = transList
         elif keyValue[0].strip() == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
             layerDict[keyValue[0]] = int(keyValue[1])
         elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth':
