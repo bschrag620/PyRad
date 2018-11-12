@@ -232,14 +232,23 @@ def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecif
     return
 
 
-def writePlanetTransmission(name, height, values, direction):
+def writePlanetTransmission(name, height, values, direction, number):
     folderPath = '%s/%s' % (profileDir, name)
-    filePath = '%s/%s.pyr' % (folderPath, 'transmission %s' % direction)
-    openfile = open(filePath, 'ab')
-    print('test: writing to %s' % filePath)
+    filePath = '%s/%s.pyr' % (folderPath, 'trans looking %s-%s ' % (direction, number))
+    openfile = open(filePath, 'wb')
     for item in values:
-        text = '%s: %s: %s\n' % (height, item, ','.join(map(str, values[item])))
+        text = '# PyRad v%s transmission file\n' \
+               '# layer height for this file is %s\n' % (VERSION, height)
         openfile.write(text.encode('utf-8'))
+        text = '%s: %s\n' % (item, ','.join(map(str, values[item])))
+        openfile.write(text.encode('utf-8'))
+    openfile.close()
+    return
+
+
+def emptyFile(filePath):
+    fullPath = '%s/%s' % (cwd, filePath)
+    openfile = open(fullPath, 'wb')
     openfile.close()
     return
 
@@ -436,6 +445,21 @@ def profileComplete(name):
     if os.path.isfile(filePath):
         return True
     return False
+
+
+def profileWriteTransmissionComplete(folderPath, heightList):
+    folderPath = '%s/%s' % (profileDir, folderPath)
+    fileName = 'profileComplete'
+    filePath = '%s/%s.pyr' % (folderPath, fileName)
+    completeProfileData = openReturnLines(filePath)
+    transmissionPath = '%s/transmissionComplete.pyr' % folderPath
+    openFile = open(transmissionPath, 'wb')
+    for line in completeProfileData:
+        openFile.write(line.encode('utf-8'))
+    text = '\nheightList: %s' % (','.join(str(n) for n in heightList))
+    openFile.write(text.encode('utf-8'))
+    openFile.close()
+    return
 
 
 def profileWriteComplete(planet, completed, expected, processingTime, res, moleculeSpecific=False):
