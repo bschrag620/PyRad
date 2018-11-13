@@ -187,11 +187,13 @@ def writeTheme(fullPath):
 
 def openReturnLines(fullPath):
     if not os.path.isfile(fullPath):
+        print('could not find file %s to open.' % fullPath)
         return False
     openFile = open(fullPath)
     lineList = openFile.readlines()
     openFile.close()
     if not lineList or NULL_TAG in lineList[0]:
+        print('file %s seems to not have any info.' % fullPath)
         return False
     while lineList[0][0] == '#' and len(lineList) > 1:
         lineList.pop(0)
@@ -232,14 +234,15 @@ def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecif
     return
 
 
-def writePlanetTransmission(name, height, values, direction, number):
+def writePlanetTransmission(name, height, values, direction, number, mode='wb'):
     folderPath = '%s/%s' % (profileDir, name)
-    filePath = '%s/%s.pyr' % (folderPath, 'trans looking %s-%s ' % (direction, number))
-    openfile = open(filePath, 'wb')
-    for item in values:
+    filePath = '%s/%s.pyr' % (folderPath, 'trans looking %s-%s' % (direction, number))
+    openfile = open(filePath, mode)
+    if mode == 'wb':
         text = '# PyRad v%s transmission file\n' \
-               '# layer height for this file is %s\n' % (VERSION, height)
+           '# layer height for this file is %s\n' % (VERSION, height)
         openfile.write(text.encode('utf-8'))
+    for item in values:
         text = '%s: %s\n' % (item, ','.join(map(str, values[item])))
         openfile.write(text.encode('utf-8'))
     openfile.close()
@@ -285,6 +288,35 @@ def readCompleteProfile(folderPath):
         else:
             cells = line.split(':')
             values[cells[0].strip()] = cells[1].strip()
+    return values
+
+
+def readCompleteTransmission(folderPath):
+    fullPath = '%s/%s/transmissionComplete.pyr' % (profileDir, folderPath)
+    lines = openReturnLines(fullPath)
+    values = {}
+    for line in lines:
+        if line[0] == '#':
+            pass
+        else:
+            cells = line.split(':')
+            values[cells[0].strip()] = cells[1].strip()
+    return values
+
+
+def readTransmissionValues(fileName, folderPath):
+    fullPath = '%s/%s/%s' % (profileDir, folderPath, fileName)
+    lines = openReturnLines(fullPath)
+    values = {}
+    for line in lines:
+        if line[0] == '#':
+            pass
+        else:
+            cells = line.split(':')
+            transmission = []
+            for t in cells[1].split(','):
+                transmission.append(float(t))
+            values[cells[0]] = transmission
     return values
 
 

@@ -1,7 +1,7 @@
 # A demo file for pyrad
 
 #         mBar  , K  , km,  m  , g,  cm-1,cm-1
-surface: 1013.25, 288, 120, 100, 9.8, 00, 2000
+surface: 1013.25, 288, 120, 100, 9.8, 500, 1000
 
 #        mol text name, concentration
 molecule: co2, .000400

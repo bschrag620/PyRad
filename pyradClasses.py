@@ -68,8 +68,40 @@ def loadEmptyPlanet(folderPath, planet=None, verify=False):
     return planet
 
 
+def readTransmissionFromFile(requestedHeight, folderPath, direction):
+    completedValues = utils.readCompleteTransmission(folderPath)
+    stringHeightList = completedValues['heightList'].split(',')
+    maxHeight = float(completedValues['maxHeight']) * 100000
+    i = 0
+    heightList = []
+    for h in stringHeightList:
+        heightList.append(float(h))
+    if direction == 'down':
+        height = 0
+        while height < requestedHeight and i < len(heightList) - 1:
+            height = float(heightList[i])
+            i += 1
+    else:
+        height = maxHeight
+        heightList.reverse()
+        requestedHeight = min(requestedHeight, maxHeight)
+        while height > requestedHeight and i < len(heightList) - 1:
+            height = float(heightList[i])
+            i += 1
+    targetIndex = heightList.index(height)
+    fileName = 'trans looking %s-%s.pyr' % (direction, targetIndex)
+    transmissionValues = utils.readTransmissionValues(fileName, folderPath)
+    for key in transmissionValues:
+        transmissionValues[key] = np.asarray(transmissionValues[key])
+    transmissionValues['rangeMin'] = float(completedValues['rangeMin'])
+    transmissionValues['rangeMax'] = float(completedValues['rangeMax'])
+    transmissionValues['surfaceTemperature'] = float(completedValues['surfaceTemperature'])
+    transmissionValues['molList'] = completedValues['molList']
+    return transmissionValues
+
+
 def processTransmissionBySingleLayer(folderPath, res=1):
-    #first process transmission upward. Need to get initial values, mostly just for surface temp
+    # first process transmission upward. Need to get initial values, mostly just for surface temp
     values = utils.readCompleteProfile(folderPath)
     planet = Planet(values['name'], float(values['surfacePressure']), int(values['surfaceTemperature']),
                     float(values['maxHeight']),
@@ -79,13 +111,10 @@ def processTransmissionBySingleLayer(folderPath, res=1):
     for mol in values['molList'].split(','):
         planet.moleculeList.append(mol)
 
-    # now, 1 file at a time, open it, read values, write the transmission at a reduced res, to save space. It will be
-    # written in key: value style, with the key being the mean height of the layer. This will allow for easy lookup
-    # for values.
-    # Start by process the transmission, looking down, ie process surface transmission 1 --> top
     xAxis = None
     fileLength = utils.profileLength(folderPath)
     heightList = [0]
+
     for i in range(1, fileLength + 1):
         lP = utils.readPlanetProfile(folderPath, i, fileLength)
         layer = Layer(lP['depth'], lP['T'], lP['P'], lP['rangeMin'], lP['rangeMax'], height=lP['height'],
@@ -93,34 +122,42 @@ def processTransmissionBySingleLayer(folderPath, res=1):
         layer.absorptionCoefficient = np.asarray(lP['absCoef'])
         layer.progressAbsCoef = True
 
-        # if this is the first time through the loop, create an xAxis with range and steps the same as the absCoef
-        # and initiate the surfaceSpectrum
         if xAxis is None:
             xAxis = np.linspace(planet.rangeMin, planet.rangeMax, len(layer.absorptionCoefficient))
             surfaceSpectrum = pyradPlanck.planckWavenumber(xAxis, planet.surfaceTemperature)
-            spectrumDict = {'layer': reduceRes(surfaceSpectrum, finalRes=res)}
+            spectrumDict = {folderPath: reduceRes(surfaceSpectrum, finalRes=res)}
             for molecule in planet.moleculeList:
                 spectrumDict[molecule] = reduceRes(surfaceSpectrum, finalRes=res)
             utils.writePlanetTransmission(folderPath, 0, spectrumDict, 'down', 0)
-
-        nextSpectrum = layer.transmission(surfaceSpectrum)
-        spectrumDict = {folderPath: reduceRes(nextSpectrum, finalRes=res)}
-
-        for molecule in planet.moleculeList:
-            molAbsCoef = utils.readPlanetProfileMolecule(folderPath, i, fileLength, molecule)
-            layer.absorptionCoefficient = np.asarray(molAbsCoef)
-            spectrumDict[molecule] = reduceRes(layer.transmission(surfaceSpectrum), finalRes=res)
+        surfaceSpectrum = layer.transmission(surfaceSpectrum)
+        spectrumDict = {folderPath: reduceRes(surfaceSpectrum, finalRes=res)}
         utils.writePlanetTransmission(folderPath, layer.meanHeight, spectrumDict, 'down', i)
         heightList.append(layer.meanHeight)
-        surfaceSpectrum = nextSpectrum
 
-    #insert a line(s) into the top of the file of the heightList and other pyrad data
-    utils.profileWriteTransmissionComplete(folderPath, heightList)
+    heightList.append(planet.maxHeight)
+    for molecule in planet.moleculeList:
+        surfaceSpectrum = pyradPlanck.planckWavenumber(xAxis, planet.surfaceTemperature)
+        spectrumDict = {}
+        for i in range(1, fileLength + 1):
+            lP = utils.readPlanetProfile(folderPath, i, fileLength)
+            molAbsCoef = utils.readPlanetProfileMolecule(folderPath, i, fileLength, molecule)
+
+            molLayer = Layer(lP['depth'], lP['T'], lP['P'], lP['rangeMin'], lP['rangeMax'], height=lP['height'],
+                             name=lP['name'])
+            molLayer.absorptionCoefficient = np.asarray(molAbsCoef)
+            molLayer.progressAbsCoef = True
+            spectrumDict[molecule] = reduceRes(molLayer.transmission(surfaceSpectrum))
+            surfaceSpectrum = molLayer.transmission(surfaceSpectrum)
+            utils.writePlanetTransmission(folderPath, molLayer.meanHeight, spectrumDict, 'down', i, mode='ab')
 
     # with transmission from surface upward processed, do the same in reverse to get the transmission toward the surface
-    # initial spetrum will be 2.7K for CMB
+    # initial spectrum will be 2.7K for CMB
     surfaceSpectrum = pyradPlanck.planckWavenumber(xAxis, 2.7)
-    heightList = [planet.maxHeight]
+    spectrumDict = {folderPath: reduceRes(surfaceSpectrum, finalRes=res)}
+    for molecule in planet.moleculeList:
+        spectrumDict[molecule] = reduceRes(surfaceSpectrum, finalRes=res)
+    utils.writePlanetTransmission(folderPath, planet.maxHeight, spectrumDict, 'up', 0)
+
     for i in range(1, fileLength + 1):
         fileNumber = fileLength + 1 - i
         lP = utils.readPlanetProfile(folderPath, fileNumber, fileLength)
@@ -128,19 +165,24 @@ def processTransmissionBySingleLayer(folderPath, res=1):
                       name=lP['name'])
         layer.absorptionCoefficient = np.asarray(lP['absCoef'])
         layer.progressAbsCoef = True
+        surfaceSpectrum = layer.transmission(surfaceSpectrum)
         spectrumDict = {folderPath: reduceRes(surfaceSpectrum, finalRes=res)}
-        for molecule in planet.moleculeList:
-            spectrumDict[molecule] = reduceRes(surfaceSpectrum, finalRes=res)
-        utils.writePlanetTransmission(folderPath, planet.maxHeight, spectrumDict, 'up', 0)
-        nextSpectrum = layer.transmission(surfaceSpectrum)
-        spectrumDict = {'layer': reduceRes(nextSpectrum, finalRes=res)}
-        for molecule in planet.moleculeList:
-            molAbsCoef = utils.readPlanetProfileMolecule(folderPath, fileNumber, fileLength, molecule)
-            layer.absorptionCoefficient = np.asarray(molAbsCoef)
-            spectrumDict[molecule] = reduceRes(layer.transmission(surfaceSpectrum), finalRes=res)
         utils.writePlanetTransmission(folderPath, layer.meanHeight, spectrumDict, 'up', i)
-        heightList.append(layer.meanHeight)
-        surfaceSpectrum = nextSpectrum
+
+    for molecule in planet.moleculeList:
+        surfaceSpectrum = pyradPlanck.planckWavenumber(xAxis, 2.7)
+        spectrumDict = {}
+        for i in range(1, fileLength + 1):
+            fileNumber = fileLength + 1 - i
+            molAbsCoef = utils.readPlanetProfileMolecule(folderPath, fileNumber, fileLength, molecule)
+            molLayer = Layer(lP['depth'], lP['T'], lP['P'], lP['rangeMin'], lP['rangeMax'], height=lP['height'],
+                          name=lP['name'])
+            molLayer.absorptionCoefficient = np.asarray(molAbsCoef)
+            molLayer.progressAbsCoef = True
+            spectrumDict[molecule] = reduceRes(molLayer.transmission(surfaceSpectrum), finalRes=res)
+            utils.writePlanetTransmission(folderPath, molLayer.meanHeight, spectrumDict, 'up', i, mode='ab')
+            surfaceSpectrum = molLayer.transmission(surfaceSpectrum)
+    utils.profileWriteTransmissionComplete(folderPath, heightList)
     return
 
 
@@ -1280,7 +1322,7 @@ def plot(propertyToPlot, title, plotList, fill=False):
     plt.ylabel(propertyToPlot)
     if propertyToPlot == 'line survey':
         plt.yscale('log')
-    plt.grid(theme.gridList, linewidth=.5, linestyle=':')
+    plt.grid(theme.gridList[0], linewidth=.5, linestyle=':')
     plt.title('%s' % title)
     handles = []
     linewidth = .7
@@ -1305,6 +1347,7 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
     plt.subplot(111, facecolor=theme.faceColor)
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
+    plt.grid(theme.gridList[0], linewidth=.5, linestyle=':')
     if layer:
         rangeMin = layer.rangeMin
         rangeMax = layer.rangeMax
@@ -1358,17 +1401,19 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=(
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
+    plt.grid(theme.gridList[0], linewidth=.5, linestyle=':')
     handles = []
     heightFlag = True
 
     if height is None:
         heightFlag = False
-    p = loadEmptyPlanet(planets[0])
-    if not heightFlag:
-        height = p.maxHeight / 100000
-
-    totalY = reduceRes(p.processTransmission(height, direction=direction, verify=verify))
-    xAxis = np.linspace(p.rangeMin, p.rangeMax, len(totalY))
+    if not heightFlag and direction == 'down':
+        height = 999999999999
+    elif not heightFlag and direction == 'up':
+        height = 0
+    transmissionValues = readTransmissionFromFile(height, planets[0], direction=direction)
+    totalY = transmissionValues[planets[0]]
+    xAxis = np.linspace(transmissionValues['rangeMin'], transmissionValues['rangeMax'], len(totalY))
 
     for temperature, color in zip(temperatureList, theme.gridList):
         yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
@@ -1377,17 +1422,19 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=(
 
     powerSpectrum = round(integrateSpectrum(totalY, pi, res=res), 2)
     effTemp = int(stefanB(powerSpectrum))
-    fig, = plt.plot(xAxis, totalY, linewidth=linewidth, color=theme.colorList[0], label='%s : %sWm-2, eff : %sK' % (p.name, powerSpectrum, effTemp))
+    fig, = plt.plot(xAxis, totalY, linewidth=linewidth, color=theme.colorList[0], label='%s : %sWm-2, eff : %sK' % (planets[0], powerSpectrum, effTemp))
     handles.append(fig)
 
     for planet, color in zip(planets[1:], theme.colorList[1:]):
-        p = loadEmptyPlanet(planet)
-        if not heightFlag:
-            height = p.maxHeight / 100000
-        totalY = reduceRes(p.processTransmission(height, direction=direction, verify=verify))
+        if not heightFlag and direction == 'down':
+            height = 999999999999
+        elif not heightFlag and direction == 'up':
+            height = 0
+        transmissionValues = readTransmissionFromFile(height, planet, direction)
+        totalY = transmissionValues[planet]
         powerSpectrum = round(integrateSpectrum(totalY, pi, res=res), 2)
         effTemp = int(stefanB(powerSpectrum))
-        fig, = plt.plot(xAxis, totalY, linewidth=linewidth, color=color, label='%s : %sWm-2, eff : %sK' % (p.name, powerSpectrum, effTemp))
+        fig, = plt.plot(xAxis, totalY, linewidth=linewidth, color=color, label='%s : %sWm-2, eff : %sK' % (planet, powerSpectrum, effTemp))
         handles.append(fig)
 
     legend = plt.legend(handles=handles, frameon=False)
@@ -1402,15 +1449,20 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
     plt.subplot(111, facecolor=theme.faceColor)
     plt.margins(0.01)
     plt.subplots_adjust(left=.05, bottom=.05, right=.97, top=.95)
+    plt.grid(theme.gridList[0], linewidth=.5, linestyle=':')
     plt.ylabel('radiance Wm-2sr-1(cm-1)-1')
     plt.xlabel('wavenumber cm-1')
     handles = []
+    heightFlag = True
     if height is None:
-        height = planet.maxHeight / 100000
-    #transmittanceValues = readTransmittance(planet, height, direction=direction)
-    #yTotal = transmittanceValues['layer']
-    yTotal = reduceRes(planet.processTransmission(height, direction=direction, verify=verify, moleculeSpecific=True))
-    xAxis = np.linspace(planet.rangeMin, planet.rangeMax, len(yTotal))
+        heightFlag = False
+    if not heightFlag and direction == 'down':
+        height = 999999999999
+    elif not heightFlag and direction == 'up':
+        height = 0
+    transmittanceValues = readTransmissionFromFile(height, planet, direction=direction)
+    yTotal = transmittanceValues[planet]
+    xAxis = np.linspace(transmittanceValues['rangeMin'], transmittanceValues['rangeMax'], len(yTotal))
     for temperature, color in zip(temperatureList, theme.gridList):
         yAxis = pyradPlanck.planckWavenumber(xAxis, float(temperature))
         fig, = plt.plot(xAxis, yAxis, linewidth=linewidth / 2, color=color,
@@ -1418,26 +1470,17 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
                                              (temperature,
                                               int(integrateSpectrum(yAxis, pi, res=res))))
         handles.append(fig)
-    planckAxis = pyradPlanck.planckWavenumber(xAxis, float(planet.surfaceTemperature))
+    planckAxis = pyradPlanck.planckWavenumber(xAxis, float(transmittanceValues['surfaceTemperature']))
     surfacePower = int(integrateSpectrum(planckAxis, pi, res=res))
     powerSpectrum = int(integrateSpectrum(yTotal, pi, res=res))
     plt.title('Surface temp: %sK    Surface flux: %sWm-2    Effec temp: %sK'
-              % (planet.surfaceTemperature, surfacePower, int(stefanB(powerSpectrum))))
+              % (transmittanceValues['surfaceTemperature'], surfacePower, int(stefanB(powerSpectrum))))
     fig, = plt.plot(xAxis, yTotal, linewidth=linewidth, color=theme.backingColor,
                     label='net flux: %sWm-2  netGHE: %sWm-2' % (powerSpectrum, surfacePower - powerSpectrum))
     handles.append(fig)
-    tempName = planet.name
-    length = len(planet.atmosphere)
-    for molecule, color in zip(planet.moleculeList, theme.colorList):
-        print('processing %s in atmosphere' % molecule)
-
-        planet.name = molecule
-        i = 1
-        for layer in planet.atmosphere:
-            layer.absorptionCoefficient = np.asarray(utils.readPlanetProfileMolecule(tempName, i, length, molecule))
-            i += 1
-        yAxis = reduceRes(planet.processTransmission(height, direction=direction, verify=False))
-        #yAxis = transmittanceValues[molecule]
+    moleculeList = transmittanceValues['molList'].split(',')
+    for molecule, color in zip(moleculeList, theme.colorList):
+        yAxis = transmittanceValues[molecule]
         tempPowerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
         fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color, alpha=.6,
                             label='%s effect : %sWm-2' % (molecule, surfacePower - tempPowerSpectrum))
@@ -1446,9 +1489,6 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
     text = legend.get_texts()
     plt.setp(text, color=theme.textColor)
     plt.show()
-    planet.name = tempName
-    #print('Reloading original planet data...')
-    #return loadEmptyPlanet(planet.name, verify=False)
     return
 
 
