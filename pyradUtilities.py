@@ -193,7 +193,6 @@ def openReturnLines(fullPath):
     lineList = openFile.readlines()
     openFile.close()
     if not lineList or NULL_TAG in lineList[0]:
-        print('file %s seems to not have any info.' % fullPath)
         return False
     while lineList[0][0] == '#' and len(lineList) > 1:
         lineList.pop(0)
@@ -249,6 +248,10 @@ def writePlanetTransmission(name, height, values, direction, number, mode='wb'):
     return
 
 
+def clearAbsData(folderPath):
+    pass
+
+
 def emptyFile(filePath):
     fullPath = '%s/%s' % (cwd, filePath)
     openfile = open(fullPath, 'wb')
@@ -274,6 +277,19 @@ def getCompletedProfileList():
             dirList.append('%s/%s' % (profileDir, file))
     for dir in dirList:
         if os.path.isfile('%s/profileComplete.pyr' % dir):
+            completedList.append(dir.split('/')[-1])
+    return completedList
+
+
+def getCompletedTransmissionList():
+    fileList = os.listdir(profileDir)
+    dirList = []
+    completedList = []
+    for file in fileList:
+        if os.path.isdir('%s/%s' % (profileDir, file)):
+            dirList.append('%s/%s' % (profileDir, file))
+    for dir in dirList:
+        if os.path.isfile('%s/transmissionComplete.pyr' % dir):
             completedList.append(dir.split('/')[-1])
     return completedList
 
@@ -343,6 +359,20 @@ def checkPlanetProfile(name):
         return False
     else:
         fileName = 'profileComplete.pyr'
+        filePath = '%s/%s' % (folderPath, fileName)
+        if os.path.isfile(filePath):
+            return True
+        else:
+            return False
+
+
+def checkPlanetTransmission(name):
+    folderPath = '%s/%s' % (profileDir, name)
+    if not os.path.isdir(folderPath):
+        os.mkdir(folderPath)
+        return False
+    else:
+        fileName = 'transmissionComplete.pyr'
         filePath = '%s/%s' % (folderPath, fileName)
         if os.path.isfile(filePath):
             return True
@@ -532,19 +562,27 @@ def readPlanetProfileMolecule(name, layerNumber, length, moleculeName):
     fileName = 'Layer %s:%s' % (layerNumber, length)
     filePath = '%s/%s.pyr' % (folderPath, fileName)
     print('Reading %s profile from %s...                                ' % (moleculeName, fileName), end='\r', flush=True)
+    layerDict = {'molecule list': []}
     lines = openReturnLines(filePath)
     for line in lines:
         keyValue = line.split(':')
         if line[0] == '#':
             pass
+        elif keyValue[0].strip() == 'name':
+            layerDict[keyValue[0]] = keyValue[1].strip()
         elif keyValue[0].strip() == '%s absCoef' % moleculeName:
             absList = keyValue[1].split(',')
             absCoefList = []
             for value in absList:
                 absCoefList.append(float(value))
-            return absCoefList
-    print('missing absCoef for %s in %s' % (moleculeName, filePath))
-    exit()
+            layerDict['absCoef'] = absCoefList
+        elif keyValue[0].strip() == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
+            layerDict[keyValue[0]] = int(keyValue[1])
+        elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth':
+            layerDict[keyValue[0]] = float(keyValue[1])
+        else:
+            pass
+    return layerDict
 
 
 def readPlanetProfile(name, layerNumber, length):

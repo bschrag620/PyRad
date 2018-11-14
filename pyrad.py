@@ -170,11 +170,12 @@ def plotPlanetSpectrum(values):
 
 
 def plotPlanetSpectrumComponents(values):
-    planet = pyradClasses.loadEmptyPlanet(values['profiles'][0].name)
+    #planet = pyradClasses.loadEmptyPlanet(values['profiles'][0].name)
     if values['height'] == -2.71828:
-        pyradClasses.plotPlanetAndComponents(planet, direction=values['direction'], verify=False)
+        pyradClasses.plotPlanetAndComponents(values['profile'], direction=values['direction'], verify=False)
+        pyradClasses.plotPlanetAndComponents(values['profile'], direction=values['direction'], verify=False)
     else:
-        pyradClasses.plotPlanetAndComponents(planet, direction=values['direction'], height=values['height'], verify=False)
+        pyradClasses.plotPlanetAndComponents(values['profile'], direction=values['direction'], height=values['height'], verify=False)
     return chooseAtmTransferBuildProfile()
 
 
@@ -579,7 +580,7 @@ def chooseDirectionComponents(profile):
 
 def plotProfileComponentsMenu(param=None):
     entryList = []
-    profileList = util.molSpecProfileList()
+    profileList = util.getCompletedTransmissionList()
     for profile in profileList:
         entryList.append(Entry('%s' % profile, nextMenu=chooseDirectionComponents, functionParams=profile))
     menuAtmTransfer = Menu('Choose atmosphere', entryList, previousMenu=chooseAtmTransferBuildProfile, multiChoice=True)
@@ -590,8 +591,10 @@ def buildProfile(profileList):
     for profile in profileList:
         print('Building %s on setting %s' % (profile.name, pyradClasses.settings.setting))
         planet = pyradClasses.createCustomPlanet(profile.name)
-        moleculeSpecific = pyradClasses.yesOrNo("Store data by individual molecule? Doesn't require more time, "
-                                                "just hard drive space %s:" % util.limeText('(y/n)'))
+        #moleculeSpecific = pyradClasses.yesOrNo("Store data by individual molecule? Doesn't require more time, "
+        #                                        "just hard drive space %s:" % util.limeText('(y/n)'))
+        saveAbsData = pyradClasses.yesOrNo("Would you like to save abs coef data?\n"
+                                           "This takes up quite a bit of space and generally isn't needed. %s" % util.limeText('(y/n)'))
         overwrite = True
         progress, time = util.profileProgress(planet.folderPath)
         print('progress: %s' % progress)
@@ -604,11 +607,15 @@ def buildProfile(profileList):
                 overwrite = pyradClasses.yesOrNo("Are you sure, choosing yes will erase all previous data.\n"
                                                  "Do you wish to overwrite it? %s" % util.limeText('(y/n)'))
             else:
-                planet.processLayers(verify=False, moleculeSpecific=moleculeSpecific)
+                planet.processLayers(verify=False, moleculeSpecific=True)
                 overwrite = False
         if overwrite:
             util.emptyProfileDirectory(planet.folderPath)
-            planet.processLayers(verify=False, moleculeSpecific=moleculeSpecific)
+            planet.processLayers(verify=False, moleculeSpecific=True)
+        print('Creating transmission...')
+        pyradClasses.processTransmissionBySingleLayer(planet.folderPath)
+        if not saveAbsData:
+            util.clearAbsData(planet.folderPath)
     return chooseAtmTransferBuildProfile()
 
 
@@ -630,7 +637,7 @@ def chooseAtmTransferBuildProfile(param=None):
 
 
 def plotAtmTransferMenu(param=None):
-    profileList = util.getCompletedProfileList()
+    profileList = util.getCompletedTransmissionList()
     entryList = []
     for profile in profileList:
         entryList.append(Entry('%s' % profile, nextMenu=chooseDirection, functionParams=profile))
