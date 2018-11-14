@@ -172,10 +172,10 @@ def plotPlanetSpectrum(values):
 def plotPlanetSpectrumComponents(values):
     #planet = pyradClasses.loadEmptyPlanet(values['profiles'][0].name)
     if values['height'] == -2.71828:
-        pyradClasses.plotPlanetAndComponents(values['profile'], direction=values['direction'], verify=False)
-        pyradClasses.plotPlanetAndComponents(values['profile'], direction=values['direction'], verify=False)
+        pyradClasses.plotPlanetAndComponents(values['profiles'][0].name, direction=values['direction'], verify=False)
+#        pyradClasses.plotPlanetAndComponents(values['profiles'], direction=values['direction'], verify=False)
     else:
-        pyradClasses.plotPlanetAndComponents(values['profile'], direction=values['direction'], height=values['height'], verify=False)
+        pyradClasses.plotPlanetAndComponents(values['profiles'][0].name, direction=values['direction'], height=values['height'], verify=False)
     return chooseAtmTransferBuildProfile()
 
 
