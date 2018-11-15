@@ -685,7 +685,7 @@ def getQData(isotope):
         downloadQData(isotope)
     return readQFile(isotope)
 
-
+# downloads a table of isotopes and data from hitran
 def downloadMolParam():
     print('Missing molecule parameters file. Downloading from http://hitran.org')
     url = 'http://hitran.org/media/molparam.txt'
@@ -707,7 +707,7 @@ def downloadMolParam():
         openFile.write(chunk)
     openFile.close()
 
-
+# downloads q table from hitran
 def downloadQData(isotope):
     url = 'http://hitran.org/data/Q/q%s.txt' % str(isotope)
     path = cwd + '/data/%s/q%s.txt' % (isotope, isotope)
@@ -722,7 +722,7 @@ def downloadQData(isotope):
         openFile.write(chunk)
     openFile.close()
 
-
+# downloads data from hitran using a function found in hapi that's been slightly modified
 def downloadHitran(path, globalID, waveMin, waveMax):
     params = 'molec_id,local_iso_id,nu,sw,a,elower,gamma_air,gamma_self,delta_air,n_air'
     url = 'http://hitran.org/lbl/api?iso_ids_list=' + \
