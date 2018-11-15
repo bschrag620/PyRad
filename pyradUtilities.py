@@ -248,7 +248,14 @@ def writePlanetTransmission(name, height, values, direction, number, mode='wb'):
 
 
 def clearAbsData(folderPath):
-    pass
+    fullPath = '%s/%s' % (profileDir, folderPath)
+    fileList = os.listdir(fullPath)
+    for file in fileList:
+        if 'layer' in file:
+            filePath = '%s/%s' % (fullPath, file)
+            print('removing %s' % file, end='\r', flush=True)
+            os.remove(filePath)
+    return
 
 
 def emptyFile(filePath):

@@ -591,8 +591,6 @@ def buildProfile(profileList):
     for profile in profileList:
         print('Building %s on setting %s' % (profile.name, pyradClasses.settings.setting))
         planet = pyradClasses.createCustomPlanet(profile.name)
-        #moleculeSpecific = pyradClasses.yesOrNo("Store data by individual molecule? Doesn't require more time, "
-        #                                        "just hard drive space %s:" % util.limeText('(y/n)'))
         saveAbsData = pyradClasses.yesOrNo("Would you like to save abs coef data?\n"
                                            "This takes up quite a bit of space and generally isn't needed. %s" % util.limeText('(y/n)'))
         overwrite = True
