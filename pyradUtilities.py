@@ -187,7 +187,6 @@ def writeTheme(fullPath):
 
 def openReturnLines(fullPath):
     if not os.path.isfile(fullPath):
-        print('could not find file %s to open.' % fullPath)
         return False
     openFile = open(fullPath)
     lineList = openFile.readlines()
@@ -561,9 +560,17 @@ def readPlanetProfileMolecule(name, layerNumber, length, moleculeName):
     folderPath = '%s/%s' % (profileDir, name)
     fileName = 'Layer %s:%s' % (layerNumber, length)
     filePath = '%s/%s.pyr' % (folderPath, fileName)
-    print('Reading %s profile from %s...                                ' % (moleculeName, fileName), end='\r', flush=True)
     layerDict = {'molecule list': []}
     lines = openReturnLines(filePath)
+    if not lines:
+        fileName = 'layer %s_%s' % (layerNumber, length)
+        filePath = '%s/%s.pyr' % (folderPath, fileName)
+        lines = openReturnLines(filePath)
+        if not lines:
+            print('cant find layer file %s' % filePath)
+            exit()
+    print('Reading %s profile from %s...                                ' % (moleculeName, fileName), end='\r',
+          flush=True)
     for line in lines:
         keyValue = line.split(':')
         if line[0] == '#':
@@ -591,7 +598,7 @@ def readPlanetProfile(name, layerNumber, length):
     filePath = '%s/%s.pyr' % (folderPath, fileName)
     lines = openReturnLines(filePath)
     if not lines:
-        fileName = 'Layer %s_%s' % (layerNumber, length)
+        fileName = 'layer %s_%s' % (layerNumber, length)
         filePath = '%s/%s.pyr' % (folderPath, fileName)
         lines = openReturnLines(filePath)
         if not lines:

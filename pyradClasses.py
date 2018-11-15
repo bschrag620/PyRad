@@ -160,7 +160,8 @@ def processTransmissionBySingleLayer(folderPath, res=1):
     for i in range(1, fileLength + 1):
         fileNumber = fileLength + 1 - i
         layerProfile= utils.readPlanetProfile(folderPath, fileNumber, fileLength)
-        layer = Layer(layerProfile['depth'], layerProfile['T'], layerProfile['P'], layerProfile['rangeMin'], layerProfile['rangeMax'], height=layerProfile['height'],
+        layer = Layer(layerProfile['depth'], layerProfile['T'], layerProfile['P'], layerProfile['rangeMin'],
+                      layerProfile['rangeMax'], height=layerProfile['height'],
                       name=layerProfile['name'])
         layer.absorptionCoefficient = np.asarray(layerProfile['absCoef'])
         layer.progressAbsCoef = True
@@ -1161,7 +1162,7 @@ class Planet:
         totalProcessTime = timeStart
         for height, depth in zip(self.heightList[startPoint:], self.depthList[startPoint:]):
             layerProcessTimeStart = time.time()
-            layer.name = 'Layer %s:%s' % (i, len(self.heightList))
+            layer.name = 'layer %s_%s' % (i, len(self.heightList))
             layer.height = height
             layer.depth = depth
             layer.T = int(self.temperatureAtHeight(layer.meanHeight))
