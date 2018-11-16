@@ -1470,15 +1470,17 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
                                              (temperature,
                                               int(integrateSpectrum(yAxis, pi, res=res))))
         handles.append(fig)
-    planckAxis = pyradPlanck.planckWavenumber(xAxis, float(transmittanceValues['surfaceTemperature']))
+    if direction == 'down':
+        surfaceTemp = float(transmittanceValues['surfaceTemperature'])
+    else:
+        surfaceTemp = 2.7
+    planckAxis = pyradPlanck.planckWavenumber(xAxis, surfaceTemp)
     surfacePower = int(integrateSpectrum(planckAxis, pi, res=res))
     powerSpectrum = int(integrateSpectrum(yTotal, pi, res=res))
     plt.title('Surface temp: %sK    Surface flux: %sWm-2    Effec temp: %sK'
               % (transmittanceValues['surfaceTemperature'], surfacePower, int(stefanB(powerSpectrum))))
-    if direction == 'up':
-        effect = surfacePower - powerSpectrum
-    else:
-        effect = powerSpectrum
+    effect = surfacePower - powerSpectrum
+
     fig, = plt.plot(xAxis, yTotal, linewidth=linewidth, color=theme.backingColor,
                     label='net flux: %sWm-2  netGHE: %sWm-2' % (powerSpectrum, effect))
     handles.append(fig)
@@ -1486,13 +1488,11 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
     for molecule, color in zip(moleculeList, theme.colorList):
         yAxis = transmittanceValues[molecule]
         tempPowerSpectrum = int(integrateSpectrum(yAxis, pi, res=res))
-        if direction == 'up':
-            effect = surfacePower - tempPowerSpectrum
-        else:
-            effect = tempPowerSpectrum
+
+        effect = surfacePower - tempPowerSpectrum
 
         fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color, alpha=.6,
-                            label='%s effect : %sWm-2' % (molecule, effect))
+                            label='%s effect: %sWm-2' % (molecule, effect))
         handles.append(fig)
     legend = plt.legend(handles=handles, frameon=False)
     text = legend.get_texts()
