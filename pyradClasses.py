@@ -703,6 +703,10 @@ class Molecule(list):
         return self.emissivity
 
     @property
+    def effectiveEmissivity(self):
+        return np.average(self.emissivity)
+
+    @property
     def P(self):
         return self.layer.P
 
@@ -847,6 +851,10 @@ class Layer(list):
     @property
     def emittance(self):
         return self.emissivity
+
+    @property
+    def effectiveEmissivity(self):
+        return np.average(self.emissivity)
 
     @property
     def molarMass(self):
