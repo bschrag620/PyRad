@@ -3,6 +3,7 @@ import pyradLineshape as ls
 import pyradIntensity
 import pyradPlanck
 import numpy as np
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import time
 
@@ -1354,6 +1355,7 @@ def plot(propertyToPlot, title, plotList, fill=False):
     plt.margins(0.01)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel(propertyToPlot)
+    plt.text(650, .5, '%s' % settings.userName, verticalalignment='bottom', horizontalalignment='right', color=theme.textColor, fontsize=8)
     if propertyToPlot == 'line survey':
         plt.yscale('log')
     plt.grid(theme.gridList[0], linewidth=.5, linestyle=':')
@@ -1369,7 +1371,9 @@ def plot(propertyToPlot, title, plotList, fill=False):
         plt.fill_between(singlePlot.xAxis, fillAxis, yAxis, color=color, alpha=.3 * fill)
         linewidth = .7
         alpha = .5
-    legend = plt.legend(handles=handles, frameon=False)
+    credit = 'PyRad v%s\n%s' % (utils.VERSION, settings.userName)
+    handles.append(mpatches.Patch(color='none', label=credit))
+    legend = plt.legend(handles=handles, frameon=False, loc=4, ncol=4)
     text = legend.get_texts()
     plt.setp(text, color=theme.textColor)
     plt.show()
@@ -1422,7 +1426,9 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
             handles.append(fig)
             alpha = 1
             linewidth = 1
-    legend = plt.legend(handles=handles, frameon=False)
+    credit = 'PyRad v%s\n%s' % (utils.VERSION, settings.userName)
+    handles.append(mpatches.Patch(color='none', label=credit))
+    legend = plt.legend(handles=handles, frameon=False, loc=4, ncol=4)
     text = legend.get_texts()
     plt.setp(text, color=theme.textColor)
     plt.show()
@@ -1436,6 +1442,8 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=(
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
     plt.grid(theme.gridList[0], linewidth=.5, linestyle=':')
+    plt.text(0.95, 0.01, '%s' % settings.userName, verticalalignment='bottom', horizontalalignment='right',
+             transform=plt.transAxes, color=theme.textColor, fontsize=8)
     handles = []
     heightFlag = True
 
@@ -1470,8 +1478,9 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=(
         effTemp = int(stefanB(powerSpectrum))
         fig, = plt.plot(xAxis, totalY, linewidth=linewidth, color=color, label='%s : %sWm-2, eff : %sK' % (planet, powerSpectrum, effTemp))
         handles.append(fig)
-
-    legend = plt.legend(handles=handles, frameon=False)
+    credit = 'PyRad v%s\n%s' % (utils.VERSION, settings.userName)
+    handles.append(mpatches.Patch(color='none', label=credit))
+    legend = plt.legend(handles=handles, frameon=False, loc=4, ncol=4)
     text = legend.get_texts()
     plt.setp(text, color=theme.textColor)
     plt.show()
@@ -1516,7 +1525,7 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
     effect = surfacePower - powerSpectrum
 
     fig, = plt.plot(xAxis, yTotal, linewidth=linewidth, color=theme.backingColor,
-                    label='net flux: %sWm-2  netGHE: %sWm-2' % (powerSpectrum, effect))
+                    label='net flux: %sWm-2' % powerSpectrum)
     handles.append(fig)
     moleculeList = transmittanceValues['molList'].split(',')
     for molecule, color in zip(moleculeList, theme.colorList):
@@ -1528,7 +1537,9 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
         fig, = plt.plot(xAxis, yAxis, linewidth=linewidth, color=color, alpha=.6,
                             label='%s effect: %sWm-2' % (molecule, effect))
         handles.append(fig)
-    legend = plt.legend(handles=handles, frameon=False)
+    credit = 'PyRad v%s\n%s' % (utils.VERSION, settings.userName)
+    handles.append(mpatches.Patch(color='none', label=credit))
+    legend = plt.legend(handles=handles, frameon=False, loc=4, ncol=4)
     text = legend.get_texts()
     plt.setp(text, color=theme.textColor)
     plt.show()

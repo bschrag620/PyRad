@@ -60,15 +60,17 @@ class Theme:
 
 
 class Settings:
-    def __init__(self, setting):
+    def __init__(self, setting, userName='@bradschrag'):
         self.setting = setting
         self.reduceRes = True
+        self.userName = userName
 
     def changeSetting(self, value):
         self.setting = value
 
     def changeResReduce(self, bool):
         self.reduceRes = bool
+
 
     @property
     def baseRes(self):
