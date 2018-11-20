@@ -225,8 +225,10 @@ def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecif
         for molecule in layer:
             text1 = '# %s abs coef\n' % molecule.name
             text2 = '%s absCoef: %s\n' % (molecule.name, ','.join(map(str, molecule.absCoef.tolist())))
+            text3 = '%s concentration: %s\n' % (molecule.name, molecule.concentration)
             openFile.write(text1.encode('utf-8'))
             openFile.write(text2.encode('utf-8'))
+            openFile.write(text3.encode('utf-8'))
     openFile.close()
     print('\t\t\t\t\t\t ||> %s.pyr' % layer.name, end='\r', flush=True)
     return
@@ -240,9 +242,19 @@ def writePlanetTransmission(name, height, values, direction, number, mode='wb'):
         text = '# PyRad v%s transmission file\n' \
            '# layer height for this file is %s\n' % (VERSION, height)
         openfile.write(text.encode('utf-8'))
-    for item in values:
-        text = '%s: %s\n' % (item, ','.join(map(str, values[item])))
+        text = '# general layer data is listed below this line. Other data contained within this file is\n' \
+               '# the reduced transmission for the layer and each molecule that is part of the atmosphere.\n' \
+               '# Effective emissivity for is the avg emissivity, normalized is the avg with zeroes removed.\n#\n'
         openfile.write(text.encode('utf-8'))
+    for item in values:
+        try:
+            iter(values[item])
+            value = ','.join(map(str, values[item]))
+        except TypeError:
+            value = values[item]
+        text = '%s: %s\n' % (item, value)
+        openfile.write(text.encode('utf-8'))
+    openfile.write('#\n'.encode('utf-8'))
     openfile.close()
     return
 
@@ -592,7 +604,8 @@ def readPlanetProfileMolecule(name, layerNumber, length, moleculeName):
             layerDict['absCoef'] = absCoefList
         elif keyValue[0].strip() == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
             layerDict[keyValue[0]] = int(keyValue[1])
-        elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth':
+        elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth' \
+                or keyValue[0].strip() == '%s concentration' % moleculeName:
             layerDict[keyValue[0]] = float(keyValue[1])
         else:
             pass
@@ -627,7 +640,8 @@ def readPlanetProfile(name, layerNumber, length):
             layerDict['absCoef'] = absCoefList
         elif keyValue[0].strip() == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
             layerDict[keyValue[0]] = int(keyValue[1])
-        elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth':
+        elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth' \
+                or 'concentration' in keyValue[0]:
             layerDict[keyValue[0]] = float(keyValue[1])
         else:
             pass
@@ -698,6 +712,7 @@ def getQData(isotope):
     if not os.path.isfile(filePath):
         downloadQData(isotope)
     return readQFile(isotope)
+
 
 # downloads a table of isotopes and data from hitran
 def downloadMolParam():

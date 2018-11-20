@@ -595,7 +595,6 @@ def buildProfile(profileList):
                                            "This takes up quite a bit of space and generally isn't needed. %s" % util.limeText('(y/n)'))
         overwrite = True
         progress, time = util.profileProgress(planet.folderPath)
-        print('progress: %s' % progress)
         if util.profileComplete(planet.folderPath):
             overwrite = pyradClasses.yesOrNo("Data for this profile and setting seems to exist.\n"
                                              "Do you wish to overwrite it? %s" % util.limeText('(y/n)'))
