@@ -2,6 +2,8 @@ import os
 import sys
 import urllib.request as urlrequest
 import urllib.error as urlexception
+import gc
+from pympler import tracker
 from datetime import datetime
 
 
@@ -16,6 +18,8 @@ now = datetime.now()
 debuggerFile = open(debuggerFilePath, 'wb')
 debuggerFile.write(bytes('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"), 'utf-8'))
 debuggerFile.close()
+
+mytracker = tracker.SummaryTracker()
 
 
 class Theme:
@@ -60,10 +64,14 @@ class Theme:
 
 
 class Settings:
+
+    userName = "@bradschrag"
+
     def __init__(self, setting, userName='@bradschrag'):
         self.setting = setting
         self.reduceRes = True
         self.userName = userName
+        Settings.userName = userName
 
     def changeSetting(self, value):
         self.setting = value
@@ -190,13 +198,14 @@ def writeTheme(fullPath):
 def openReturnLines(fullPath):
     if not os.path.isfile(fullPath):
         return False
-    openFile = open(fullPath)
-    lineList = openFile.readlines()
-    openFile.close()
+    with open(fullPath, 'r') as data:
+        lineList = data.readlines()
+
     if not lineList or NULL_TAG in lineList[0]:
         return False
     while lineList[0][0] == '#' and len(lineList) > 1:
         lineList.pop(0)
+    gc.collect()
     return lineList
 
 
@@ -206,10 +215,10 @@ def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecif
         os.mkdir(folderPath)
     filePath = '%s/%s.pyr' % (folderPath, layer.name)
     now = datetime.now()
-    openFile = open(filePath, 'wb')
-    text = '# created by PyRad v%s on %s.\n' % (VERSION, now.strftime("%Y-%m-%d %H:%M:%S"))
-    openFile.write(text.encode('utf-8'))
-    text = ('time: %ssecs\n'
+    with open(filePath, 'wb') as openFile:
+        text = '# created by PyRad v%s on %s.\n' % (VERSION, now.strftime("%Y-%m-%d %H:%M:%S"))
+        openFile.write(text.encode('utf-8'))
+        text = ('time: %ssecs\n'
             'depth: %s\n'
             'T: %s\n'
             'P: %s\n'
@@ -222,16 +231,15 @@ def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecif
             'layer absCoef: %s\n'
             % (int(processingTime), layer.depth, int(layer.T), layer.P, layer.rangeMin, layer.rangeMax, layer.height,
                layer.name, ','.join(moleculeList), ','.join(map(str, layer.absCoef.tolist()))))
-    openFile.write(text.encode('utf-8'))
-    if moleculeSpecific:
-        for molecule in layer:
-            text1 = '# %s abs coef\n' % molecule.name
-            text2 = '%s absCoef: %s\n' % (molecule.name, ','.join(map(str, molecule.absCoef.tolist())))
-            text3 = '%s concentration: %s\n' % (molecule.name, molecule.concentration)
-            openFile.write(text1.encode('utf-8'))
-            openFile.write(text2.encode('utf-8'))
-            openFile.write(text3.encode('utf-8'))
-    openFile.close()
+        openFile.write(text.encode('utf-8'))
+        if moleculeSpecific:
+            for molecule in layer:
+                text1 = '# %s abs coef\n' % molecule.name
+                text2 = '%s absCoef: %s\n' % (molecule.name, ','.join(map(str, molecule.absCoef.tolist())))
+                text3 = '%s concentration: %s\n' % (molecule.name, molecule.concentration)
+                openFile.write(text1.encode('utf-8'))
+                openFile.write(text2.encode('utf-8'))
+                openFile.write(text3.encode('utf-8'))
     print('\t\t\t\t\t\t ||> %s.pyr' % layer.name, end='\r', flush=True)
     return
 
@@ -239,25 +247,25 @@ def writePlanetProfile(name, layer, processingTime, moleculeList, moleculeSpecif
 def writePlanetTransmission(name, height, values, direction, number, mode='wb'):
     folderPath = '%s/%s' % (profileDir, name)
     filePath = '%s/%s.pyr' % (folderPath, 'trans looking %s-%s' % (direction, number))
-    openfile = open(filePath, mode)
-    if mode == 'wb':
-        text = '# PyRad v%s transmission file\n' \
-           '# layer height for this file is %s\n' % (VERSION, height)
-        openfile.write(text.encode('utf-8'))
-        text = '# general layer data is listed below this line. Other data contained within this file is\n' \
-               '# the reduced transmission for the layer and each molecule that is part of the atmosphere.\n' \
-               '# Effective emissivity for is the avg emissivity, normalized is the avg with zeroes removed.\n#\n'
-        openfile.write(text.encode('utf-8'))
-    for item in values:
-        try:
-            iter(values[item])
-            value = ','.join(map(str, values[item]))
-        except TypeError:
-            value = values[item]
-        text = '%s: %s\n' % (item, value)
-        openfile.write(text.encode('utf-8'))
-    openfile.write('#\n'.encode('utf-8'))
-    openfile.close()
+    with open(filePath, mode) as openFile:
+        if mode == 'wb':
+            text = '# PyRad v%s transmission file\n' \
+               '# layer height for this file is %s\n' % (VERSION, height)
+            openFile.write(text.encode('utf-8'))
+            text = '# general layer data is listed below this line. Other data contained within this file is\n' \
+                   '# the reduced transmission for the layer and each molecule that is part of the atmosphere.\n' \
+                   '# Effective emissivity for is the avg emissivity, normalized is the avg with zeroes removed.\n#\n'
+            openFile.write(text.encode('utf-8'))
+        for item in values:
+            try:
+                iter(values[item])
+                value = ','.join(map(str, values[item]))
+            except TypeError:
+                value = values[item]
+            text = '%s: %s\n' % (item, value)
+            openFile.write(text.encode('utf-8'))
+        openFile.write('#\n'.encode('utf-8'))
+    gc.collect()
     return
 
 
@@ -909,7 +917,7 @@ else:
                     'regularCyan': '\x1b[0;36;48m',
                     'colorEnd': '\x1b[0m'}
 
-VERSION = '3.0'
+VERSION = '3.01'
 titleLine = "%s******************              PyRad v%s              ******************%s" \
             % (TEXT_COLORS['underlineCyan'], VERSION, TEXT_COLORS['colorEnd'])
 messageGap = int((len(titleLine) - len(VERSION) - 1) / 2)
@@ -1081,6 +1089,8 @@ THEME = {'dark':    {'faceColor':   (29, 29, 29),
                                       (227, 162, 26)],
                      'textColor':      (239, 244, 255),
                      'gridColor':   (204, 204, 204)}}
+
+CREDIT = credit = 'PyRad v%s\n%s' % (VERSION, Settings.userName)
 
 print(GREETING)
 setupDir()

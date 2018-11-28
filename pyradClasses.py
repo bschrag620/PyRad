@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import time
+from pympler import tracker
+import gc
 
 
 c = 299792458.0
@@ -21,6 +23,7 @@ sb = 5.67E-8
 
 settings = utils.Settings('low')
 theme = utils.Theme()
+
 
 
 def reduceRes(array, finalRes=1.0):
@@ -102,6 +105,7 @@ def readTransmissionFromFile(requestedHeight, folderPath, direction):
 
 
 def processTransmissionBySingleLayer(folderPath, res=1):
+    memoryTracker = tracker.SummaryTracker()
     # first process transmission upward. Need to get initial values, mostly just for surface temp
     values = utils.readCompleteProfile(folderPath)
     planet = Planet(values['name'], float(values['surfacePressure']), int(values['surfaceTemperature']),
@@ -115,11 +119,16 @@ def processTransmissionBySingleLayer(folderPath, res=1):
     xAxis = None
     fileLength = utils.profileLength(folderPath)
     heightList = [0]
-
+    layer = Layer(0, 0, 0, 0, 0)
     for i in range(1, fileLength + 1):
         layerProfile = utils.readPlanetProfile(folderPath, i, fileLength)
-        layer = Layer(layerProfile['depth'], layerProfile['T'], layerProfile['P'], layerProfile['rangeMin'], layerProfile['rangeMax'], height=layerProfile['height'],
-                      name=layerProfile['name'])
+        layer.depth = layerProfile['depth']
+        layer.P = layerProfile['P']
+        layer.T = layerProfile['T']
+        layer.rangeMin = layerProfile['rangeMin']
+        layer.rangeMax = layerProfile['rangeMax']
+        layer.height = layerProfile['height']
+        layer.name = layerProfile['name']
         layer.absorptionCoefficient = np.asarray(layerProfile['absCoef'])
         layer.progressAbsCoef = True
 
@@ -141,24 +150,29 @@ def processTransmissionBySingleLayer(folderPath, res=1):
                         '%s layer normalized emissivity' % folderPath: layer.normalizedEmissivity}
         utils.writePlanetTransmission(folderPath, layer.meanHeight, spectrumDict, 'down', i)
         heightList.append(layer.meanHeight)
+        gc.collect()
 
     heightList.append(planet.maxHeight)
     for molecule in planet.moleculeList:
         surfaceSpectrum = pyradPlanck.planckWavenumber(xAxis, planet.surfaceTemperature)
-        spectrumDict = {}
         for i in range(1, fileLength + 1):
             moleculeProfile = utils.readPlanetProfileMolecule(folderPath, i, fileLength, molecule)
-
-            layer = Layer(moleculeProfile['depth'], moleculeProfile['T'], moleculeProfile['P'], moleculeProfile['rangeMin'], moleculeProfile['rangeMax'], height=moleculeProfile['height'],
-                             name=moleculeProfile['name'])
+            layer.depth = layerProfile['depth']
+            layer.P = moleculeProfile['P']
+            layer.T = moleculeProfile['T']
+            layer.rangeMin = moleculeProfile['rangeMin']
+            layer.rangeMax = moleculeProfile['rangeMax']
+            layer.height = moleculeProfile['height']
+            layer.name = moleculeProfile['name']
             layer.absorptionCoefficient = np.asarray(moleculeProfile['absCoef'])
             layer.progressAbsCoef = True
-            spectrumDict['%s transmission' % molecule] = reduceRes(layer.transmission(surfaceSpectrum))
-            spectrumDict['%s effective emissivity' % molecule] = layer.effectiveEmissivity
-            spectrumDict['%s normalized emissivity' % molecule] = layer.normalizedEmissivity
-            spectrumDict['%s concentration' % molecule] = moleculeProfile['%s concentration' % molecule]
+            spectrumDict = {'%s transmission' % molecule: reduceRes(layer.transmission(surfaceSpectrum)),
+                            '%s effective emissivity' % molecule: layer.effectiveEmissivity,
+                            '%s normalized emissivity' % molecule: layer.normalizedEmissivity,
+                            '%s concentration' % molecule: moleculeProfile['%s concentration' % molecule]}
             surfaceSpectrum = layer.transmission(surfaceSpectrum)
             utils.writePlanetTransmission(folderPath, layer.meanHeight, spectrumDict, 'down', i, mode='ab')
+            gc.collect()
 
     # with transmission from surface upward processed, do the same in reverse to get the transmission toward the surface
     # initial spectrum will be 2.7K for CMB
@@ -171,33 +185,45 @@ def processTransmissionBySingleLayer(folderPath, res=1):
     for i in range(1, fileLength + 1):
         fileNumber = fileLength + 1 - i
         layerProfile = utils.readPlanetProfile(folderPath, fileNumber, fileLength)
-        layer = Layer(layerProfile['depth'], layerProfile['T'], layerProfile['P'], layerProfile['rangeMin'],
-                      layerProfile['rangeMax'], height=layerProfile['height'],
-                      name=layerProfile['name'])
+        layer.depth = layerProfile['depth']
+        layer.P = layerProfile['P']
+        layer.T = layerProfile['T']
+        layer.rangeMin = layerProfile['rangeMin']
+        layer.rangeMax = layerProfile['rangeMax']
+        layer.height = layerProfile['height']
+        layer.name = layerProfile['name']
         layer.absorptionCoefficient = np.asarray(layerProfile['absCoef'])
         layer.progressAbsCoef = True
         surfaceSpectrum = layer.transmission(surfaceSpectrum)
         spectrumDict = {'%s transmission' % folderPath: reduceRes(surfaceSpectrum, finalRes=res),
                         '%s layer effective emissivity' % folderPath: layer.effectiveEmissivity,
-                        '%s layer nomrmalized emissivity' % folderPath: layer.normalizedEmissivity}
+                        '%s layer normalized emissivity' % folderPath: layer.normalizedEmissivity}
         utils.writePlanetTransmission(folderPath, layer.meanHeight, spectrumDict, 'up', i)
+        gc.collect()
 
     for molecule in planet.moleculeList:
         surfaceSpectrum = pyradPlanck.planckWavenumber(xAxis, 2.7)
-        spectrumDict = {}
+
         for i in range(1, fileLength + 1):
             fileNumber = fileLength + 1 - i
             moleculeProfile = utils.readPlanetProfileMolecule(folderPath, fileNumber, fileLength, molecule)
-            layer = Layer(moleculeProfile['depth'], moleculeProfile['T'], moleculeProfile['P'], moleculeProfile['rangeMin'], moleculeProfile['rangeMax'], height=moleculeProfile['height'],
-                          name=moleculeProfile['name'])
+            layer.depth = layerProfile['depth']
+            layer.P = moleculeProfile['P']
+            layer.T = moleculeProfile['T']
+            layer.rangeMin = moleculeProfile['rangeMin']
+            layer.rangeMax = moleculeProfile['rangeMax']
+            layer.height = moleculeProfile['height']
+            layer.name = moleculeProfile['name']
             layer.absorptionCoefficient = np.asarray(moleculeProfile['absCoef'])
             layer.progressAbsCoef = True
-            spectrumDict['%s transmission' % molecule] = reduceRes(layer.transmission(surfaceSpectrum), finalRes=res)
-            spectrumDict['%s effective emissivity' % molecule] = layer.effectiveEmissivity
-            spectrumDict['%s normalized emissivity' % molecule] = layer.normalizedEmissivity
-            spectrumDict['%s concentration' % molecule] = moleculeProfile['%s concentration' % molecule]
+            spectrumDict = {'%s transmission' % molecule: reduceRes(layer.transmission(surfaceSpectrum), finalRes=res),
+                            '%s effective emissivity' % molecule: layer.effectiveEmissivity,
+                            '%s normalized emissivity' % molecule: layer.normalizedEmissivity,
+                            '%s concentration' % molecule: moleculeProfile['%s concentration' % molecule]}
             utils.writePlanetTransmission(folderPath, layer.meanHeight, spectrumDict, 'up', i, mode='ab')
             surfaceSpectrum = layer.transmission(surfaceSpectrum)
+            gc.collect()
+
     utils.profileWriteTransmissionComplete(folderPath, heightList)
     return
 
@@ -1442,8 +1468,6 @@ def plotPlanetSpectrum(planets, height=None, direction='down', temperatureList=(
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel('Radiance Wm-2sr-1(cm-1)-1')
     plt.grid(theme.gridList[0], linewidth=.5, linestyle=':')
-    plt.text(0.95, 0.01, '%s' % settings.userName, verticalalignment='bottom', horizontalalignment='right',
-             transform=plt.transAxes, color=theme.textColor, fontsize=8)
     handles = []
     heightFlag = True
 
