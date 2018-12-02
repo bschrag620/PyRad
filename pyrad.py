@@ -662,7 +662,7 @@ def menuMain():
 def settingsMenu(previousMenu=menuMain):
     lowSetting = Entry('low (intensity > 1e-21)', nextFunction=changeSettings, functionParams=('low', previousMenu))
     midSetting = Entry('mid (intensity > 1e-24)', nextFunction=changeSettings, functionParams=('mid', previousMenu))
-    hiSetting = Entry('hi (all absorption lines)', nextFunction=changeSettings, functionParams=('hi', previousMenu))
+    hiSetting = Entry('high (all absorption lines)', nextFunction=changeSettings, functionParams=('high', previousMenu))
     loadTheme = Entry('Change theme', nextMenu=chooseThemeMenu, functionParams=previousMenu)
     menuSettings = Menu('Choose level of detail', [lowSetting, midSetting, hiSetting, loadTheme], previousMenu=previousMenu)
     return menuSettings
