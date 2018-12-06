@@ -588,11 +588,12 @@ def plotProfileComponentsMenu(param=None):
 
 
 def buildProfile(profileList):
+    saveAbsData = pyradClasses.yesOrNo("Would you like to save abs coef data?\n"
+                                       "This takes up quite a bit of space and generally isn't needed. %s"
+                                       % util.limeText('(y/n)'))
     for profile in profileList:
         print('Building %s on setting %s' % (profile.name, pyradClasses.settings.setting))
         planet = pyradClasses.createCustomPlanet(profile.name)
-        saveAbsData = pyradClasses.yesOrNo("Would you like to save abs coef data?\n"
-                                           "This takes up quite a bit of space and generally isn't needed. %s" % util.limeText('(y/n)'))
         overwrite = True
         progress, time = util.profileProgress(planet.folderPath)
         if util.profileComplete(planet.folderPath):

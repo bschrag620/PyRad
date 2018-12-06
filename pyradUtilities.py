@@ -86,7 +86,7 @@ class Settings:
             return .01
         elif self.setting == 'mid':
             return .01
-        elif self.setting == 'high':
+        elif self.setting == 'high' or self.setting == 'hi':
             return .01
 
     @property
@@ -95,7 +95,7 @@ class Settings:
             return 1E-21
         elif self.setting == 'mid':
             return 1E-24
-        elif self.setting == 'high':
+        elif self.setting == 'high' or self.setting == 'hi':
             return 0.0
 
     @property
@@ -104,7 +104,7 @@ class Settings:
             return 1
         elif self.setting == 'mid':
             return 50
-        elif self.setting == 'high':
+        elif self.setting == 'high' or self.setting == 'hi':
             return 100
 
 
