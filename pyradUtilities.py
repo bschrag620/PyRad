@@ -254,7 +254,7 @@ def writePlanetTransmission(name, height, values, direction, number, mode='wb'):
             openFile.write(text.encode('utf-8'))
             text = '# general layer data is listed below this line. Other data contained within this file is\n' \
                    '# the reduced transmission for the layer and each molecule that is part of the atmosphere.\n' \
-                   '# Effective emissivity for is the avg emissivity, normalized is the avg with zeroes removed.\n#\n'
+                   '# Effective emissivity for is the avg emissivity\n#\n'
             openFile.write(text.encode('utf-8'))
         for item in values:
             try:
@@ -335,6 +335,15 @@ def readCompleteProfile(folderPath):
     return values
 
 
+def readHeightFile(folderPath):
+    fullPath = '%s/%s/profileHeights.pyr' % (profileDir, folderPath)
+    lines = openReturnLines(fullPath)
+    heights = []
+    for line in lines:
+        heights.append(float(line))
+    return heights
+
+
 def readCompleteTransmission(folderPath):
     fullPath = '%s/%s/transmissionComplete.pyr' % (profileDir, folderPath)
     lines = openReturnLines(fullPath)
@@ -345,6 +354,7 @@ def readCompleteTransmission(folderPath):
         else:
             cells = line.split(':')
             values[cells[0].strip()] = cells[1].strip()
+    values['heightList'] = readHeightFile(folderPath)
     return values
 
 
@@ -510,7 +520,7 @@ def profileProgress(name):
         else:
             cells = line.split(':')
             if cells[0] == 'completed':
-                completed = int(cells[1])
+                completed = int(cells[1]) - 1
             elif cells[0] == 'time':
                 startTime = int(cells[1].strip())
     return completed, startTime
@@ -537,18 +547,28 @@ def profileComplete(name):
     return False
 
 
+def writeHeightList(folderPath, heightList):
+    path = '%s/%s' % (profileDir, folderPath)
+    fileName = 'profileHeights'
+    filePath = '%s/%s.pyr' % (path, fileName)
+    openFile = open(filePath, 'wb')
+    for height in heightList:
+        text = "%s\n" % height
+        openFile.write(text.encode('utf-8'))
+    return
+
+
 def profileWriteTransmissionComplete(folderPath, heightList):
-    folderPath = '%s/%s' % (profileDir, folderPath)
+    path = '%s/%s' % (profileDir, folderPath)
     fileName = 'profileComplete'
-    filePath = '%s/%s.pyr' % (folderPath, fileName)
+    filePath = '%s/%s.pyr' % (path, fileName)
     completeProfileData = openReturnLines(filePath)
-    transmissionPath = '%s/transmissionComplete.pyr' % folderPath
+    transmissionPath = '%s/transmissionComplete.pyr' % path
     openFile = open(transmissionPath, 'wb')
     for line in completeProfileData:
         openFile.write(line.encode('utf-8'))
-    text = '\nheightList: %s' % (','.join(str(n) for n in heightList))
-    openFile.write(text.encode('utf-8'))
     openFile.close()
+    writeHeightList(folderPath, heightList)
     return
 
 
@@ -567,6 +587,8 @@ def profileWriteComplete(planet, completed, expected, processingTime, res, molec
            'maxHeight: %s\n' \
            'initialDepth: %s\n' \
            'gravity: %s\n' \
+           'surfaceEffEmissivity: %s\n'\
+           'surfacePower: %s\n'\
            'rangeMin: %s\n' \
            'rangeMax: %s\n' \
            'molList: %s\n' \
@@ -575,7 +597,8 @@ def profileWriteComplete(planet, completed, expected, processingTime, res, molec
            'completed: %s' % (planet.folderPath, time.strftime("%Y-%m-%d %H:%M:%S"), VERSION, int(processingTime),
                               planet.folderPath, moleculeSpecific, planet.surfacePressure, planet.surfaceTemperature,
                               int(planet.maxHeight / 100000), planet.heightList[1], planet.gravity,
-                              planet.rangeMin, planet.rangeMax, ','.join(planet.moleculeList), res, expected, completed)
+                              planet.effEmissivity, planet.surfacePower, planet.rangeMin, planet.rangeMax,
+                              ','.join(planet.moleculeList), res, expected, completed)
     openFile = open(filePath, 'wb')
     openFile.write(text.encode('utf-8'))
     openFile.close()
@@ -642,12 +665,12 @@ def readPlanetProfile(name, layerNumber, length):
             pass
         elif keyValue[0].strip() == 'name':
             layerDict[keyValue[0]] = keyValue[1].strip()
-        elif keyValue[0].strip() == 'layer absCoef':
+        elif 'absCoef' in keyValue[0].strip():
             absList = keyValue[1].split(',')
             absCoefList = []
             for value in absList:
                 absCoefList.append(float(value))
-            layerDict['absCoef'] = absCoefList
+            layerDict[keyValue[0].strip()] = absCoefList
         elif keyValue[0].strip() == 'T' or keyValue[0] == 'rangeMin' or keyValue[0] == 'rangeMax':
             layerDict[keyValue[0]] = int(keyValue[1])
         elif keyValue[0].strip() == 'P' or keyValue[0].strip() == 'height' or keyValue[0].strip() == 'depth' \
@@ -746,6 +769,7 @@ def downloadMolParam():
         openFile.write(chunk)
     openFile.close()
 
+
 # downloads q table from hitran
 def downloadQData(isotope):
     url = 'http://hitran.org/data/Q/q%s.txt' % str(isotope)
@@ -760,6 +784,7 @@ def downloadQData(isotope):
             break
         openFile.write(chunk)
     openFile.close()
+
 
 # downloads data from hitran using a function found in hapi that's been slightly modified
 def downloadHitran(path, globalID, waveMin, waveMax):
@@ -879,6 +904,7 @@ def displayAllMolecules():
         if newLineIter == 7:
             newLineIter = 0
             print('\n')
+
 
 RES_MULTIPLIER = 1
 BASE_RESOLUTION = .01 * RES_MULTIPLIER

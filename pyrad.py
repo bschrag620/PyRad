@@ -424,7 +424,7 @@ def inputHeight(values):
     text = 'Enter the height to view transmission from.\t\t\t'
     height = receiveInput('%s\n'
                           'Units should be in %s. If no value entered, maximum atm height will be used: ' % (util.underlineCyan(text), util.limeText('km')), validNumber, default=-2.71828)
-    values['height'] = height
+    values['height'] = height * 10**5
     return plotPlanetSpectrum(values)
 
 
@@ -432,7 +432,7 @@ def inputHeightComponents(values):
     text = 'Enter the height to view transmission from.\t\t\t'
     height = receiveInput('%s\n'
                           'Units should be in %s. If no value entered, maximum atm height will be used: ' % (util.underlineCyan(text), util.limeText('km')), validNumber, default=-2.71828)
-    values['height'] = height
+    values['height'] = height * 10**5
     return plotPlanetSpectrumComponents(values)
 
 
@@ -591,6 +591,9 @@ def buildProfile(profileList):
     saveAbsData = pyradClasses.yesOrNo("Would you like to save abs coef data?\n"
                                        "This takes up quite a bit of space and generally isn't needed. %s"
                                        % util.limeText('(y/n)'))
+    # initiate planet variable, in hopes of stopping memory leak
+    planet = None
+
     for profile in profileList:
         print('Building %s on setting %s' % (profile.name, pyradClasses.settings.setting))
         planet = pyradClasses.createCustomPlanet(profile.name)
@@ -614,6 +617,7 @@ def buildProfile(profileList):
         pyradClasses.processTransmissionBySingleLayer(planet.folderPath)
         if not saveAbsData:
             util.clearAbsData(planet.folderPath)
+        planet.clearData()
     return chooseAtmTransferBuildProfile()
 
 

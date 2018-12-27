@@ -342,10 +342,10 @@ ATM_PROFILES = {'tropical': {'surface temp': 299.7,
 
 properties = ['pressure', 'temp', 'mol density', 'h2o', 'co', 'ch4', 'n2o']
 
-region = 'midlatitude summer'
-profile = 'ch4'
-yAxis = ATM_PROFILES[region]['heights'][20:50]
-xAxis = ATM_PROFILES[region][profile][20:50]
+region = 'midlatitude winter'
+profile = 'h2o'
+yAxis = ATM_PROFILES[region]['heights']
+xAxis = ATM_PROFILES[region][profile]
 
 plt.plot(xAxis, yAxis)
 plt.show()
