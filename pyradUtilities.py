@@ -173,6 +173,116 @@ def setupDir():
     return directoryCheck and fileCheck
 
 
+def csvToPYR(filePath):
+    fullPath = cwd + '/afgl/' + filePath
+    lines = openReturnLines(fullPath)
+    name = lines[0].split(',')[0]
+    height_position = 0
+    pressure_position = 1
+    temp_position = 2
+    h2o_position = 4
+    o3_posiiton = 5
+    n2o_position = 6
+    co_posiiton = 7
+    ch4_position = 8
+    heightList = []
+    pressureList = []
+    tempList = []
+    h2oList = []
+    o3List = []
+    n2oList = []
+    coList = []
+    ch4List = []
+    for line in lines[2:]:
+        cells = line.strip().split(',')
+        heightList.append(cells[height_position])
+        pressureList.append(cells[pressure_position])
+        tempList.append(cells[temp_position])
+        h2oList.append(float(cells[h2o_position]) * 10**-6)
+        o3List.append(float(cells[o3_posiiton]) * 10**-6)
+        n2oList.append(float(cells[n2o_position]) * 10**-6)
+        coList.append(float(cells[co_posiiton]) * 10**-6)
+        ch4List.append(float(cells[ch4_position]) * 10**-6)
+
+    pyrFilePath = '%s/%s.pyr' % (cwd, name)
+
+    openFile = open(pyrFilePath, 'wb')
+
+    # write comments
+    text = "# atm profile for %s\n\n" \
+           "# surface values (pressure, temperature, final height, initial layer thickness, " \
+           "acceleration of gravity, range min, range max)\n" \
+           "surface: %s, %s, 120, 100, 9.8, 100, 2500\n" % (name, float(pressureList[0]), tempList[0])
+    openFile.write(text.encode('utf-8'))
+
+    # write initial file values
+    text = "\n# initial molecule ppmv. All values are taken from line 0 of their respective AFGL profile\n" \
+           "# except for co2, o2, n2, and ar\n" \
+           "molecule: co2, .000287\n" \
+           "molecule: h2o, %s\n" \
+           "molecule: o2, .20\n" \
+           "molecule: n2, .77\n" \
+           "molecule: ar, .009\n" \
+           "molecule: ch4, %s\n" \
+           "molecule: o3, %s\n" \
+           "molecule: n2o, %s\n" \
+           "molecule: co, %s\n" % (float(h2oList[0]), float(ch4List[0]),
+                                   float(o3List[0]), float(n2oList[0]), float(coList[0]))
+    openFile.write(text.encode('utf-8'))
+
+    # write lapse rate
+    text = "\n# lapse rate profile\n" \
+           "# rules are: name, final height, final value\n" \
+           "# initial values for a rule are defined by the final value of the previous rule (or surface for the first rule)\n"
+    openFile.write(text.encode('utf-8'))
+    i = 0
+    for temp, height in zip(tempList[1:], heightList[1:]):
+        text = 'lapse rate: lapse rule %s, %s, %s\n' % (i, height, temp)
+        openFile.write(text.encode('utf-8'))
+        i += 1
+    i = 0
+    text = "\n# h2o composition profile\n" \
+           "# composition rules are: name, final height, final value ppmv, molecule the rule applies to\n"
+    openFile.write(text.encode('utf-8'))
+    for h2o, height in zip(h2oList[1:], heightList[1:]):
+        text = 'composition rate: h2o rule %s, %s, %s, h2o\n' % (i, height, float(h2o))
+        openFile.write(text.encode('utf-8'))
+        i += 1
+    i = 0
+    text = "\n# ch4 composition profile\n" \
+           "# composition rules are: name, final height, final value ppmv, molecule the rule applies to\n"
+    openFile.write(text.encode('utf-8'))
+    for ch4, height in zip(ch4List[1:], heightList[1:]):
+        text = 'composition rate: ch4 rule %s, %s, %s, ch4\n' % (i, height, float(ch4))
+        openFile.write(text.encode('utf-8'))
+        i += 1
+    i = 0
+    text = "\n# o3 composition profile\n" \
+           "# composition rules are: name, final height, final value ppmv, molecule the rule applies to\n"
+    openFile.write(text.encode('utf-8'))
+    for o3, height in zip(o3List[1:], heightList[1:]):
+        text = 'composition rate: o3 rule %s, %s, %s, o3\n' % (i, height, float(o3))
+        openFile.write(text.encode('utf-8'))
+        i += 1
+    i = 0
+    text = "\n# n2o composition profile\n" \
+           "# composition rules are: name, final height, final value ppmv, molecule the rule applies to\n"
+    openFile.write(text.encode('utf-8'))
+    for n2o, height in zip(n2oList[1:], heightList[1:]):
+        text = 'composition rate: n2o rule %s, %s, %s, n2o\n' % (i, height, float(n2o))
+        openFile.write(text.encode('utf-8'))
+        i += 1
+    i = 0
+    text = "\n# co composition profile\n" \
+           "# composition rules are: name, final height, final value ppmv, molecule the rule applies to\n"
+    openFile.write(text.encode('utf-8'))
+    for co, height in zip(coList[1:], heightList[1:]):
+        text = 'composition rate: co rule %s, %s, %s, co\n' % (i, height, float(co))
+        openFile.write(text.encode('utf-8'))
+        i += 1
+    openFile.close()
+
+
 def writeTheme(fullPath):
     openFile = open(fullPath, 'wb')
     text = '# created by PyRad v%s on %s.\n' \
@@ -446,7 +556,7 @@ def parseCustomProfile(name):
                         'rangeMax': 2000}
             values = line.split(':')[1].split(',')
             tempDict['surfacePressure'] = float(values[0])
-            tempDict['surfaceTemperature'] = int(values[1])
+            tempDict['surfaceTemperature'] = float(values[1])
             tempDict['maxHeight'] = float(values[2])
             tempDict['initialDepth'] = float(values[3])
             tempDict['gravity'] = float(values[4])

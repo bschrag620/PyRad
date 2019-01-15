@@ -42,3 +42,7 @@ colorList: 255, 95, 0
 
 # yellow
 colorList: 255, 255, 0
+
+colorList: 120, 205, 120
+colorList: 0, 95, 255
+colorList: 180, 95, 180

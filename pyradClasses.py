@@ -111,7 +111,7 @@ def readTransmissionFromFile(requestedHeight, folderPath, direction):
 def processTransmissionBySingleLayer(folderPath, res=1):
 
     values = utils.readCompleteProfile(folderPath)
-    planet = Planet(values['name'], float(values['surfacePressure']), int(values['surfaceTemperature']),
+    planet = Planet(values['name'], float(values['surfacePressure']), int(float(values['surfaceTemperature'])),
                     float(values['maxHeight']),
                     rangeMin=int(values['rangeMin']), rangeMax=int(values['rangeMax']),
                     initialThickness=int(float(values['initialDepth'])),

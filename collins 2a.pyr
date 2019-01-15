@@ -1,0 +1,174 @@
+# atm profile for midlatitude summer
+
+# surface values (pressure, temperature, final height, initial layer thickness, acceleration of gravity, range min, range max)
+surface: 1010.0, 294.2, 120, 100, 9.8, 100, 2500
+
+# initial molecule ppmv. All values are taken from line 0 of their respective AFGL profile
+# except for co2, o2, n2, and ar
+molecule: co2, .000369
+molecule: h2o, 0.0186
+molecule: o2, .20
+molecule: n2, .77
+molecule: ar, .009
+#molecule: ch4, 1.6999999999999998e-06
+molecule: o3, 3.02e-08
+#molecule: n2o, 3.2e-07
+#molecule: co, 1.5e-07
+
+# lapse rate profile
+# rules are: name, final height, final value
+# initial values for a rule are defined by the final value of the previous rule (or surface for the first rule)
+lapse rate: lapse rule 0, 1, 289.7
+lapse rate: lapse rule 1, 2, 295.2
+lapse rate: lapse rule 2, 3, 279.2
+lapse rate: lapse rule 3, 4, 273.2
+lapse rate: lapse rule 4, 5, 287.2
+lapse rate: lapse rule 5, 6, 261.2
+lapse rate: lapse rule 6, 7, 254.7
+lapse rate: lapse rule 7, 8, 248.2
+lapse rate: lapse rule 8, 9, 241.7
+lapse rate: lapse rule 9, 10, 235.3
+lapse rate: lapse rule 10, 11, 228.8
+lapse rate: lapse rule 11, 12, 222.3
+lapse rate: lapse rule 12, 13, 215.8
+lapse rate: lapse rule 13, 14, 215.7
+lapse rate: lapse rule 14, 15, 215.7
+lapse rate: lapse rule 15, 16, 215.7
+lapse rate: lapse rule 16, 17, 215.7
+lapse rate: lapse rule 17, 18, 216.8
+lapse rate: lapse rule 18, 19, 217.9
+lapse rate: lapse rule 19, 20, 219.2
+lapse rate: lapse rule 20, 21, 220.4
+lapse rate: lapse rule 21, 22, 221.6
+lapse rate: lapse rule 22, 23, 222.8
+lapse rate: lapse rule 23, 24, 223.9
+lapse rate: lapse rule 24, 25, 225.1
+lapse rate: lapse rule 25, 27.6, 228.5
+lapse rate: lapse rule 26, 30, 233.7
+lapse rate: lapse rule 27, 32.6, 239
+lapse rate: lapse rule 28, 35, 245.2
+lapse rate: lapse rule 29, 37.5, 251.3
+lapse rate: lapse rule 30, 40, 257.5
+lapse rate: lapse rule 31, 42.5, 263.7
+lapse rate: lapse rule 32, 45, 269.9
+lapse rate: lapse rule 33, 47.5, 275.2
+lapse rate: lapse rule 34, 50, 275.7
+lapse rate: lapse rule 35, 55, 269.3
+lapse rate: lapse rule 36, 60, 257.1
+lapse rate: lapse rule 37, 65, 240.1
+lapse rate: lapse rule 38, 70, 218
+lapse rate: lapse rule 39, 75, 196.1
+lapse rate: lapse rule 40, 80, 174.1
+lapse rate: lapse rule 41, 85, 165.1
+lapse rate: lapse rule 42, 90, 165
+lapse rate: lapse rule 43, 95, 178.3
+lapse rate: lapse rule 44, 100, 190.5
+lapse rate: lapse rule 45, 105, 222.2
+lapse rate: lapse rule 46, 110, 262.4
+lapse rate: lapse rule 47, 115, 316.8
+lapse rate: lapse rule 48, 120, 380
+
+# h2o composition profile
+# composition rules are: name, final height, final value ppmv, molecule the rule applies to
+composition rate: h2o rule 0, 1, 0.0138, h2o
+composition rate: h2o rule 1, 2, 0.00968, h2o
+composition rate: h2o rule 2, 3, 0.00598, h2o
+composition rate: h2o rule 3, 4, 0.00381, h2o
+composition rate: h2o rule 4, 5, 0.0022299999999999998, h2o
+composition rate: h2o rule 5, 6, 0.0015099999999999998, h2o
+composition rate: h2o rule 6, 7, 0.0010199999999999999, h2o
+composition rate: h2o rule 7, 8, 0.000646, h2o
+composition rate: h2o rule 8, 9, 0.00041299999999999996, h2o
+composition rate: h2o rule 9, 10, 0.000247, h2o
+composition rate: h2o rule 10, 11, 9.559999999999999e-05, h2o
+composition rate: h2o rule 11, 12, 2.9399999999999996e-05, h2o
+composition rate: h2o rule 12, 13, 8e-06, h2o
+composition rate: h2o rule 13, 14, 4.9999999999999996e-06, h2o
+composition rate: h2o rule 14, 15, 3.3999999999999996e-06, h2o
+composition rate: h2o rule 15, 16, 3.2999999999999997e-06, h2o
+composition rate: h2o rule 16, 17, 3.2e-06, h2o
+composition rate: h2o rule 17, 18, 3.15e-06, h2o
+composition rate: h2o rule 18, 19, 3.2e-06, h2o
+composition rate: h2o rule 19, 20, 3.2999999999999997e-06, h2o
+composition rate: h2o rule 20, 21, 3.45e-06, h2o
+composition rate: h2o rule 21, 22, 3.6e-06, h2o
+composition rate: h2o rule 22, 23, 3.8499999999999996e-06, h2o
+composition rate: h2o rule 23, 24, 4e-06, h2o
+composition rate: h2o rule 24, 25, 4.2e-06, h2o
+composition rate: h2o rule 25, 27.6, 4.45e-06, h2o
+composition rate: h2o rule 26, 30, 4.7e-06, h2o
+composition rate: h2o rule 27, 32.6, 4.87e-06, h2o
+composition rate: h2o rule 28, 35, 4.95e-06, h2o
+composition rate: h2o rule 29, 37.5, 4.9999999999999996e-06, h2o
+composition rate: h2o rule 30, 40, 5.0999999999999995e-06, h2o
+composition rate: h2o rule 31, 42.5, 5.299999999999999e-06, h2o
+composition rate: h2o rule 32, 45, 5.45e-06, h2o
+composition rate: h2o rule 33, 47.5, 5.5e-06, h2o
+composition rate: h2o rule 34, 50, 5.5e-06, h2o
+composition rate: h2o rule 35, 55, 5.35e-06, h2o
+composition rate: h2o rule 36, 60, 4.9999999999999996e-06, h2o
+composition rate: h2o rule 37, 65, 4.4e-06, h2o
+composition rate: h2o rule 38, 70, 3.7e-06, h2o
+composition rate: h2o rule 39, 75, 2.95e-06, h2o
+composition rate: h2o rule 40, 80, 2.1e-06, h2o
+composition rate: h2o rule 41, 85, 1.33e-06, h2o
+composition rate: h2o rule 42, 90, 8.499999999999999e-07, h2o
+composition rate: h2o rule 43, 95, 5.4e-07, h2o
+composition rate: h2o rule 44, 100, 4e-07, h2o
+composition rate: h2o rule 45, 105, 3.4000000000000003e-07, h2o
+composition rate: h2o rule 46, 110, 2.8e-07, h2o
+composition rate: h2o rule 47, 115, 2.4e-07, h2o
+composition rate: h2o rule 48, 120, 2e-07, h2o
+
+# o3 composition profile
+# composition rules are: name, final height, final value ppmv, molecule the rule applies to
+composition rate: o3 rule 0, 1, 3.3399999999999995e-08, o3
+composition rate: o3 rule 1, 2, 3.69e-08, o3
+composition rate: o3 rule 2, 3, 4.22e-08, o3
+composition rate: o3 rule 3, 4, 4.8199999999999995e-08, o3
+composition rate: o3 rule 4, 5, 5.5100000000000004e-08, o3
+composition rate: o3 rule 5, 6, 6.41e-08, o3
+composition rate: o3 rule 6, 7, 7.76e-08, o3
+composition rate: o3 rule 7, 8, 9.13e-08, o3
+composition rate: o3 rule 8, 9, 1.11e-07, o3
+composition rate: o3 rule 9, 10, 1.3e-07, o3
+composition rate: o3 rule 10, 11, 1.7899999999999997e-07, o3
+composition rate: o3 rule 11, 12, 2.23e-07, o3
+composition rate: o3 rule 12, 13, 3e-07, o3
+composition rate: o3 rule 13, 14, 4.3999999999999997e-07, o3
+composition rate: o3 rule 14, 15, 5e-07, o3
+composition rate: o3 rule 15, 16, 6e-07, o3
+composition rate: o3 rule 16, 17, 7e-07, o3
+composition rate: o3 rule 17, 18, 1e-06, o3
+composition rate: o3 rule 18, 19, 1.5e-06, o3
+composition rate: o3 rule 19, 20, 2e-06, o3
+composition rate: o3 rule 20, 21, 2.4e-06, o3
+composition rate: o3 rule 21, 22, 2.8999999999999998e-06, o3
+composition rate: o3 rule 22, 23, 3.3999999999999996e-06, o3
+composition rate: o3 rule 23, 24, 4e-06, o3
+composition rate: o3 rule 24, 25, 4.8e-06, o3
+composition rate: o3 rule 25, 27.6, 6e-06, o3
+composition rate: o3 rule 26, 30, 7e-06, o3
+composition rate: o3 rule 27, 32.6, 8.099999999999999e-06, o3
+composition rate: o3 rule 28, 35, 8.9e-06, o3
+composition rate: o3 rule 29, 37.5, 8.7e-06, o3
+composition rate: o3 rule 30, 40, 7.55e-06, o3
+composition rate: o3 rule 31, 42.5, 5.9e-06, o3
+composition rate: o3 rule 32, 45, 4.5e-06, o3
+composition rate: o3 rule 33, 47.5, 3.5e-06, o3
+composition rate: o3 rule 34, 50, 2.8e-06, o3
+composition rate: o3 rule 35, 55, 1.8e-06, o3
+composition rate: o3 rule 36, 60, 1.3e-06, o3
+composition rate: o3 rule 37, 65, 8e-07, o3
+composition rate: o3 rule 38, 70, 4e-07, o3
+composition rate: o3 rule 39, 75, 1.8999999999999998e-07, o3
+composition rate: o3 rule 40, 80, 2e-07, o3
+composition rate: o3 rule 41, 85, 5.699999999999999e-07, o3
+composition rate: o3 rule 42, 90, 7.5e-07, o3
+composition rate: o3 rule 43, 95, 7e-07, o3
+composition rate: o3 rule 44, 100, 4.03e-07, o3
+composition rate: o3 rule 45, 105, 2e-07, o3
+composition rate: o3 rule 46, 110, 5e-08, o3
+composition rate: o3 rule 47, 115, 5e-09, o3
+composition rate: o3 rule 48, 120, 5e-10, o3
+
