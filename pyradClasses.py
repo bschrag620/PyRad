@@ -1424,7 +1424,7 @@ def plot(propertyToPlot, title, plotList, fill=False):
     plt.margins(0.1)
     plt.subplots_adjust(left=.07, bottom=.08, right=.97, top=.90)
     plt.ylabel(propertyToPlot)
-    plt.text(650, .5, '%s' % settings.userName, verticalalignment='bottom', horizontalalignment='right', color=theme.textColor, fontsize=8)
+    # plt.text(650, .5, '%s' % settings.userName, verticalalignment='bottom', horizontalalignment='right', color=theme.textColor, fontsize=8)
     if propertyToPlot == 'line survey':
         plt.yscale('log')
     plt.grid(theme.gridList[0], linewidth=.5, linestyle=':')
@@ -1478,10 +1478,10 @@ def plotSpectrum(layer=None, title=None, rangeMin=None, rangeMax=None, objList=N
     handles = []
     if not rangeMax:
         xAxis = layer.xAxis
-    for temperature, color in zip(planckTemperatureList, theme.gridList):
+    for temperature, color in zip(planckTemperatureList, theme.colorList[3:]):
         yAxis = planckFunction(xAxis, float(temperature))
         fig, = plt.plot(xAxis, yAxis, linewidth=.75, color=color,
-                        linestyle=':', label='%sK : %sWm-2' %
+                         label='%sK : %sWm-2' %
                         (temperature, round(integrateSpectrum(yAxis, res=(rangeMax - rangeMin) / len(yAxis)), 2)))
         handles.append(fig)
     if objList:
