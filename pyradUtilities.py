@@ -3,7 +3,6 @@ import sys
 import urllib.request as urlrequest
 import urllib.error as urlexception
 import gc
-from pympler import tracker
 from datetime import datetime
 
 
@@ -18,9 +17,6 @@ now = datetime.now()
 debuggerFile = open(debuggerFilePath, 'wb')
 debuggerFile.write(bytes('%s\n' % now.strftime("%Y-%m-%d %H:%M:%S"), 'utf-8'))
 debuggerFile.close()
-
-mytracker = tracker.SummaryTracker()
-
 
 class Theme:
     def __init__(self, value='dark'):
