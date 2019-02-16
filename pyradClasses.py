@@ -104,7 +104,7 @@ def readTransmissionFromFile(requestedHeight, folderPath, direction):
     transmissionValues['molList'] = completedValues['molList']
     transmissionValues['surfaceEffEmissivity'] = float(completedValues['surfaceEffEmissivity']),
     transmissionValues['res'] = float(completedValues['res'])
-    transmissionValues['surfacePower'] = float(completedValues['surfacePower'])
+    transmissionValues['surfacePower'] = float(transmissionValues['surfacePower'][0])
     return transmissionValues
 
 
@@ -1582,6 +1582,8 @@ def plotPlanetAndComponents(planet, height=None, direction='down', temperatureLi
         handles.append(fig)
 
     surfacePower = transmittanceValues['surfacePower']
+    input()
+    print(surfacePower)
     powerSpectrum = integrateSpectrum(yTotal, pi, res=res)
     plt.title('Surface temp: %sK    Surface flux: %sWm-2    Effect temp: %sK'
               % (transmittanceValues['surfaceTemperature'], round(surfacePower, 2), round(stefanB(powerSpectrum), 2)))
