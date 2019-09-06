@@ -360,13 +360,14 @@ class Isotope(list):
 
 
 class Molecule(list):
-    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
+    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance, xscOnly=false):
         super(Molecule, self).__init__(self)
         self.layer = layer
         self.crossSection = np.copy(layer.crossSection)
         self.isotopeDepth = isotopeDepth
         self.concText = ''
         self.concentration = 0
+        self.xscOnly = xscOnly
         try:
             int(shortNameOrMolNum)
             self.ID = int(shortNameOrMolNum)
@@ -883,6 +884,10 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'c2h4': 38, 'ch3oh': 39, 'ch3br': 40, 'ch3cn': 41,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
                'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
+
+CFC_IDS = {
+    
+}
 
 
 

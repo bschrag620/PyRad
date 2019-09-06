@@ -9,6 +9,7 @@ import numpy as np
 cwd = os.getcwd()
 lineSep = os.linesep
 dataDir = '%s/data' % cwd
+xscDir = '%s/xsc' % dataDir
 curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
 debuggerFilePath = '%s/logger.txt' % cwd
@@ -356,6 +357,23 @@ def displayAllMolecules():
         if newLineIter == 7:
             newLineIter = 0
             print('\n')
+
+
+def returnXscFileLines(moleculeShortName, i):
+    targetDir = xscDir + '/%s' % moleculeShortName
+    fileList = os.listdir(targetDir)
+    tarFile = targetDir + '/' + fileList[i]
+    return openReturnLines(tarFile)
+
+
+def returnListOfXscMolecules():
+    return os.listdir(xscDir)
+
+def returnXscTemperaturePressureValues(moleculeShortName):
+    targetDir = xscDir + '/%s' % moleculeShortName
+    fileList = os.listdir(targetDir)
+    
+
 
 RES_MULTIPLIER = 1
 BASE_RESOLUTION = .01 * RES_MULTIPLIER
