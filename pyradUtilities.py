@@ -4,6 +4,7 @@ import urllib.request as urlrequest
 import urllib.error as urlexception
 import datetime
 import numpy as np
+import re
 
 
 cwd = os.getcwd()
@@ -370,9 +371,45 @@ def returnListOfXscMolecules():
     return os.listdir(xscDir)
 
 def returnXscTemperaturePressureValues(moleculeShortName):
+
+    def returnMatch(match, testString):
+        return match.search(testString).group(0) or False
+
     targetDir = xscDir + '/%s' % moleculeShortName
-    fileList = os.listdir(targetDir)
-    
+    try:
+        fileList = os.listdir(targetDir)
+    except:
+        print('target directory: %s does not exist' % targetDir)
+        return False
+    objList = {}
+
+    tempMatch = re.compile('[0-9.]*(?=K)')
+    pressureMatch = re.compile('[0-9.]*(?=Torr)')
+    molNameMatch = re.compile('^[A-Za-z0-9]*')
+    rangeMatch = re.compile('(?<=_)[0-9.]*-[0-9.]*(?=_)')
+    resMatch = re.compile('(?<=_)[0-9]{1,}.[0-9]{1,}(?=_)')
+
+    for file in fileList:
+        filename = re.sub('.txt', '', file)
+        rangeMinMax = molName = temp = pressure = res = False
+
+        rangeMinMax = returnMatch(rangeMatch, filename)
+        molName = returnMatch(molNameMatch, filename)
+        temp = returnMatch(tempMatch, filename)
+        pressure = returnMatch(pressureMatch, filename)
+        res = returnMatch(resMatch, filename)
+
+        if rangeMinMax and molName and temp and res and pressure:
+            objList[filename] = {
+                'temperature': float(temp),
+                'pressure': float(pressure),
+                'rangeMin': float(rangeMinMax.split('-')[0]),
+                'rangeMax': float(rangeMinMax.split('-')[1]),
+                'res': float(res),
+                'filename': file
+            }
+
+    return {molName: objList}
 
 
 RES_MULTIPLIER = 1
