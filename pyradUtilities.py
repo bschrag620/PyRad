@@ -50,7 +50,7 @@ def underlineWhite(text):
 
 def logToFile(text):
     debugFile = open(debuggerFilePath, 'a')
-    debugFile.write('%s\n' % text)
+    debugFile.write('%s: %s\n' % (datetime.datetime.now(), text))
     debugFile.close()
 
 
@@ -83,6 +83,7 @@ def setupDir():
 
 def openReturnLines(fullPath):
     if not os.path.isfile(fullPath):
+        logToFile('path not found: %s' % fullPath)
         return False
     openFile = open(fullPath)
     lineList = openFile.readlines()
@@ -370,11 +371,23 @@ def returnXscFileLines(moleculeShortName, i):
 def returnListOfXscMolecules():
     return os.listdir(xscDir)
 
-def returnXscTemperaturePressureValues(moleculeShortName):
+
+def parseXscFileName(file):
+    filename = re.sub('.txt', '', file)
 
     def returnMatch(match, testString):
         return match.search(testString).group(0) or False
 
+    tempMatch = re.compile('[0-9.]*(?=K)')
+    pressureMatch = re.compile('[0-9.]*(?=Torr)')
+    molNameMatch = re.compile('^[A-Za-z0-9]*')
+    rangeMatch = re.compile('(?<=_)[0-9.]*-[0-9.]*(?=_)')
+    resMatch = re.compile('(?<=_)[0-9]{1,}.[0-9]{1,}(?=_)')
+
+    return [returnMatch(rangeMatch, filename), returnMatch(molNameMatch, filename), returnMatch(tempMatch, filename), returnMatch(pressureMatch, filename), returnMatch(resMatch, filename)]
+
+
+def returnXscTemperaturePressureValues(moleculeShortName):
     targetDir = xscDir + '/%s' % moleculeShortName
     try:
         fileList = os.listdir(targetDir)
@@ -383,34 +396,67 @@ def returnXscTemperaturePressureValues(moleculeShortName):
         return False
     objList = {}
 
-    tempMatch = re.compile('[0-9.]*(?=K)')
-    pressureMatch = re.compile('[0-9.]*(?=Torr)')
-    molNameMatch = re.compile('^[A-Za-z0-9]*')
-    rangeMatch = re.compile('(?<=_)[0-9.]*-[0-9.]*(?=_)')
-    resMatch = re.compile('(?<=_)[0-9]{1,}.[0-9]{1,}(?=_)')
-
     for file in fileList:
-        filename = re.sub('.txt', '', file)
-        rangeMinMax = molName = temp = pressure = res = False
-
-        rangeMinMax = returnMatch(rangeMatch, filename)
-        molName = returnMatch(molNameMatch, filename)
-        temp = returnMatch(tempMatch, filename)
-        pressure = returnMatch(pressureMatch, filename)
-        res = returnMatch(resMatch, filename)
+        [rangeMinMax, molName, temp, pressure, res] = parseXscFileName(file)
 
         if rangeMinMax and molName and temp and res and pressure:
-            objList[filename] = {
+            objList[file.strip('.txt')] = {
                 'temperature': float(temp),
                 'pressure': float(pressure),
                 'rangeMin': float(rangeMinMax.split('-')[0]),
                 'rangeMax': float(rangeMinMax.split('-')[1]),
                 'res': float(res),
-                'filename': file
+                'filename': file + '.txt'
             }
+        else:
+            print('error parsing values')
+            logToFile('error parsing filename: "%s"' % file)
+            logToFile('|---> rangeMinMax: %s, molName: %s, temp: %s, pressure: %s, res: %s, filename: %s' % (rangeMinMax, molName, temp, pressure, res, filename))
 
     return {molName: objList}
 
+
+def returnXscFileContents(molShortName, filename):
+    targetDir = xscDir + '/' + molShortName
+    targetFile = targetDir + '/' + filename
+
+    lines = openReturnLines(targetFile)
+    results = {}
+    for line in lines:
+        try:
+            print(line)
+            [wavenumber, lineIntensity] = re.compile("[ ]*").split(line.strip())
+            results[float(wavenumber)] = float(lineIntensity)
+        except:
+            print('line skipped, check log file for details')
+            logToFile('error splitting line in file: "%s"' % targetFile)
+            logToFile('|----> line to split: "%s" ' % line)
+
+    return results
+
+
+def processXscFile(molShortName, filename):
+    results = returnXscFileContents(molShortName, filename)
+
+    if results == {}:
+        print('error processing file: "%s"' % filename)
+        logToFile('error processing file: "%s"' % filename)
+        return False
+    else:
+        [rangeMinMax, molName, temp, pressure, res] = parseXscFileName(filename)
+        xAxis = []
+        yAxis = []
+
+        orderedKeys = sorted(list(results.keys()))
+        for wn in orderedKeys:
+            xAxis.append(wn)
+            yAxis.append(results[wn])
+
+        return {
+            'xAxis': xAxis,
+            'yAxis': np.asarray(yAxis),
+            'res': float(res)
+        }
 
 RES_MULTIPLIER = 1
 BASE_RESOLUTION = .01 * RES_MULTIPLIER
