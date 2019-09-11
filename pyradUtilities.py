@@ -5,6 +5,7 @@ import urllib.error as urlexception
 import datetime
 import numpy as np
 import re
+from bs4 import BeautifulSoup
 
 
 cwd = os.getcwd()
@@ -13,6 +14,7 @@ dataDir = '%s/data' % cwd
 xscDir = '%s/xsc' % dataDir
 curvesDir = '%s/curves' % dataDir
 molParamsFile = '%s/molparams.txt' % dataDir
+exoticTableFile = '%s/exotic_table.txt' % dataDir
 debuggerFilePath = '%s/logger.txt' % cwd
 now = datetime.datetime.now()
 debuggerFile = open(debuggerFilePath, 'wb')
@@ -210,6 +212,45 @@ def downloadMolParam():
             break
         openFile.write(chunk)
     openFile.close()
+
+
+def downloadAndWriteToFile(url, filePath):
+    url = 'http://hitran.org/media/molparam.txt'
+    try:
+        request = urlrequest.urlopen(url)
+    except urlexception.HTTPError:
+        print('Can not retrieve file at %s. Exiting.' % url)
+        return False
+    except urlexception.URLError:
+        print('Can not connect. Exiting')
+        return False
+    chunkSize = 1024 * 64
+    openFile = open(filePath, 'wb')
+    while True:
+        chunk = request.read(chunkSize)
+        if not chunk:
+            print('Molecule parameters successfully downloaded.')
+            break
+        openFile.write(chunk)
+    openFile.close()
+
+
+# download exotic (cross-section) only data from HITRAN
+def downloadExoticTable():
+    print('Retrieving exotic table info from HITRAN...')
+    url = 'https://hitran.org/suppl/xsec/Table%20S3.%20Cross-sections.html'
+    
+    try:
+        html = urlrequest.urlopen(url).read()
+    except:
+        print('Can not retrieve exotic table list at this time...')
+        return False
+    except urlexception.URLError:
+        print('Can not connect')
+        return False
+
+    writeTableToCSV(html, exoticTableFile)
+
 
 # downloads q table from hitran
 def downloadQData(isotope):
