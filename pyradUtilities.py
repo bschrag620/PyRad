@@ -2,9 +2,12 @@ import os
 import sys
 import urllib.request as urlrequest
 import urllib.error as urlexception
+import requests
 import datetime
 import numpy as np
 import re
+import csv
+import zipfile
 from bs4 import BeautifulSoup
 
 
@@ -145,7 +148,7 @@ def getMolParamsFromHitranFile():
         cells = row.split()
         logToFile('for loop cells: %s' % cells)
         if cells[0].lower() in MOLECULE_ID:
-            localIso = 0
+            lcalIso = 0
             haveMolecule = True
             moleculeShortName = cells[0].lower()
             moleculeID = int(cells[1].replace(')', '').replace('(', ''))
@@ -235,21 +238,67 @@ def downloadAndWriteToFile(url, filePath):
     openFile.close()
 
 
+def writeTableToCSV(html, filepath):
+    soup = BeautifulSoup(html, 'html.parser')
+    table = soup.select_one('table')
+    
+    headers = [th.text for th in table.select('tr th')]
+    headers = list(filter(lambda h: h != '', headers))
+
+    with open(filepath, 'w') as f:
+        wr = csv.writer(f)
+        wr.writerow(headers)
+        wr.writerows([[td.text for td in row.find_all('td')] for row in table.select('tr + tr')])        
+
+
+def unzipFile(filepath, folderName=False):
+    if (folderName is False):
+        folderName = os.path.basename(filepath).strip('.zip')
+        folderPath = os.path.dirname(filepath) + '/' + folderName
+
+    if (not os.path.isdir(folderPath)):
+        try:
+            os.mkdir(folderPath)
+        except OSError:
+            print('Could not create directory when unzipping file: %s' % filepath)
+
+    with zipfile.ZipFile(filepath, 'r') as zipr:
+        zipr.extractall(folderPath)    
+
+
+
+
 # download exotic (cross-section) only data from HITRAN
 def downloadExoticTable():
     print('Retrieving exotic table info from HITRAN...')
     url = 'https://hitran.org/suppl/xsec/Table%20S3.%20Cross-sections.html'
     
     try:
-        html = urlrequest.urlopen(url).read()
-    except:
+        request = urlrequest.urlopen(url)
+    except urlexception.HTTPError:
         print('Can not retrieve exotic table list at this time...')
         return False
     except urlexception.URLError:
         print('Can not connect')
         return False
 
-    writeTableToCSV(html, exoticTableFile)
+    writeTableToCSV(request.read(), exoticTableFile)
+
+
+def downloadXscZipFile(filename):
+    url = 'https://hitran.org/suppl/xsec/cross_section_data/%s' % filename
+    print('Downloading cross-section zipfile: %s' % url)
+    targetDir = xscDir
+    targetFile = targetDir + '/' + filename
+    request = urlrequest.urlopen(url)
+    chunkSize = 1024 * 64
+    openfile = open(targetFile, 'wb')
+    while True:
+        chunk = request.read(chunkSize)
+        if not chunk:
+            break
+        openfile.write(chunk)
+    openfile.close()
 
 
 # downloads q table from hitran
@@ -402,13 +451,6 @@ def displayAllMolecules():
             print('\n')
 
 
-def returnXscFileLines(moleculeShortName, i):
-    targetDir = xscDir + '/%s' % moleculeShortName
-    fileList = os.listdir(targetDir)
-    tarFile = targetDir + '/' + fileList[i]
-    return openReturnLines(tarFile)
-
-
 def returnListOfXscMolecules():
     return os.listdir(xscDir)
 
@@ -428,8 +470,8 @@ def parseXscFileName(file):
     return [returnMatch(rangeMatch, filename), returnMatch(molNameMatch, filename), returnMatch(tempMatch, filename), returnMatch(pressureMatch, filename), returnMatch(resMatch, filename)]
 
 
-def returnXscTemperaturePressureValues(moleculeShortName):
-    targetDir = xscDir + '/%s' % moleculeShortName
+def returnXscTemperaturePressureValues():
+    targetDir = xscDir
     try:
         fileList = os.listdir(targetDir)
     except:
@@ -457,8 +499,7 @@ def returnXscTemperaturePressureValues(moleculeShortName):
     return {molName: objList}
 
 
-def returnXscFileContents(molShortName, filename):
-    targetDir = xscDir + '/' + molShortName
+def returnXscFileContents(filename):
     targetFile = targetDir + '/' + filename
 
     lines = openReturnLines(targetFile)
@@ -476,8 +517,8 @@ def returnXscFileContents(molShortName, filename):
     return results
 
 
-def processXscFile(molShortName, filename):
-    results = returnXscFileContents(molShortName, filename)
+def processXscFile(filename):
+    results = returnXscFileContents(filename)
 
     if results == {}:
         print('error processing file: "%s"' % filename)
