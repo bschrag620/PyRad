@@ -489,7 +489,9 @@ def parseXscFileName(file):
     filename = re.sub('.txt', '', file)
 
     def returnMatch(match, testString):
-        return match.search(testString).group(0) or False
+        if match.search(testString):
+            return match.search(testString).group(0)
+        return False
 
     tempMatch = re.compile('[0-9.]*(?=K)')
     pressureMatch = re.compile('[0-9.]*(?=Torr)')
@@ -497,36 +499,48 @@ def parseXscFileName(file):
     rangeMatch = re.compile('(?<=_)[0-9.]*-[0-9.]*(?=_)')
     resMatch = re.compile('(?<=_)[0-9]{1,}.[0-9]{1,}(?=_)')
 
-    return [returnMatch(rangeMatch, filename), returnMatch(molNameMatch, filename), returnMatch(tempMatch, filename), returnMatch(pressureMatch, filename), returnMatch(resMatch, filename)]
+    return {
+        'RANGE': returnMatch(rangeMatch, filename), 
+        'MOLECULE_SHORT_NAME': returnMatch(molNameMatch, filename), 
+        'TEMP': returnMatch(tempMatch, filename), 
+        'PRESSURE': returnMatch(pressureMatch, filename), 
+        'RES': returnMatch(resMatch, filename)}
 
 
 def returnXscTemperaturePressureValues():
-    targetDir = xscDir
-    try:
-        fileList = os.listdir(targetDir)
-    except:
-        print('target directory: %s does not exist' % targetDir)
-        return False
-    objList = {}
+    targetDirs = list(filter(lambda dir: os.path.isdir(xscDir + '/' + dir), os.listdir(xscDir)))
+    returnDict = {}
+    for directory in targetDirs:
+        targetDir =  xscDir + '/' + directory
+        try:
+            fileList = os.listdir(targetDir)
+        except:
+            print('target directory: %s does not exist' % targetDir)
+            return False
+        objList = {}
 
-    for file in fileList:
-        [rangeMinMax, molName, temp, pressure, res] = parseXscFileName(file)
+        for file in fileList:
+            parsedDict = parseXscFileName(file)
 
-        if rangeMinMax and molName and temp and res and pressure:
-            objList[file.strip('.txt')] = {
-                'temperature': float(temp),
-                'pressure': float(pressure),
-                'rangeMin': float(rangeMinMax.split('-')[0]),
-                'rangeMax': float(rangeMinMax.split('-')[1]),
-                'res': float(res),
-                'filename': file + '.txt'
-            }
-        else:
-            print('error parsing values')
-            logToFile('error parsing filename: "%s"' % file)
-            logToFile('|---> rangeMinMax: %s, molName: %s, temp: %s, pressure: %s, res: %s, filename: %s' % (rangeMinMax, molName, temp, pressure, res, filename))
+            if False not in parsedDict.values():
+                objList[file.strip('.txt')] = {
+                    'TEMP': float(parsedDict['TEMP']),
+                    'PRESSURE': float(parsedDict['PRESSURE']),
+                    'RANGEMIN': float(parsedDict['RANGE'].split('-')[0]),
+                    'RANGEMAX': float(parsedDict['RANGE'].split('-')[1]),
+                    'RES': float(parsedDict['RES']),
+                    'filename': file + '.txt'
+                }
 
-    return {molName: objList}
+                returnDict[directory] = objList
+
+            else:
+                print('error parsing values')
+                logToFile('error parsing filename: "%s"' % file)
+                logToFile('|---> rangeMinMax: %s, temp: %s, pressure: %s, res: %s, filename: %s' % 
+                    (parsedDict['RANGE'], parsedDict['TEMP'], parsedDict['PRESSURE'], parsedDict['RES'], file + '.txt'))
+    
+    return returnDict
 
 
 def returnXscFileContents(filename):
