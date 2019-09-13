@@ -286,20 +286,16 @@ def processXscTable():
 
 
 def processXscTableByMolecule():
-    moleculeList = {}
+    moleculeDict = {}
     table = processXscTable()
     for k, v in table.items():
-        valuedict = v
-        valuedict.update({'XSC_DESCRIPTION': k})
-        del(valuedict['MOLECULE'])
-
-        if k in moleculeList:
-            moleculeList[k].append(valuedict)
+        moleculename = v['MOLECULE']
+        if moleculename in moleculeDict:
+            moleculeDict[moleculename].update({k: v})
         else:
-            moleculeList[k] = [valuedict]
-######            
+            moleculeDict[moleculename] = {k: v}
 
-    return moleculeList
+    return moleculeDict
 
 
 # download exotic (cross-section) only data from HITRAN
