@@ -242,13 +242,13 @@ def writeTableToCSV(html, filepath):
     soup = BeautifulSoup(html, 'html.parser')
     table = soup.select_one('table')
     
-    headers = [th.text for th in table.select('tr th')]
+    headers = [th.text.strip() for th in table.select('tr th')]
     headers = list(filter(lambda h: h != '', headers))
 
     with open(filepath, 'w') as f:
         wr = csv.writer(f)
         wr.writerow(headers)
-        wr.writerows([[td.text for td in row.find_all('td')] for row in table.select('tr + tr')])        
+        wr.writerows([[td.text.strip() for td in row.find_all('td')] for row in table.select('tr + tr')])        
 
 
 def unzipFile(filepath, folderName=False):
@@ -263,9 +263,43 @@ def unzipFile(filepath, folderName=False):
             print('Could not create directory when unzipping file: %s' % filepath)
 
     with zipfile.ZipFile(filepath, 'r') as zipr:
-        zipr.extractall(folderPath)    
+        zipr.extractall(folderPath)
 
 
+def returnDictFromCSV(filepath, headers):
+    entries = {}
+    with open(filepath) as csvfile:
+        reader = csv.DictReader(csvfile)
+        
+        for row in reader:
+            e = entries[row[headers[0]]] = {}
+            for h in headers[1:]:
+                e.update({h: row[h]})
+
+    return entries
+
+
+def processXscTable():
+    table = returnDictFromCSV(exoticTableFile, ['FILENAME', 'MOLECULE', 'TEMP', 'PRES', 'NUMIN', 'NUMAX', 'BRD', 'SOURCE'])
+    
+    return {k.strip('.txt'): v for k, v in table.items()}
+
+
+def processXscTableByMolecule():
+    moleculeList = {}
+    table = processXscTable()
+    for k, v in table.items():
+        valuedict = v
+        valuedict.update({'XSC_DESCRIPTION': k})
+        del(valuedict['MOLECULE'])
+
+        if k in moleculeList:
+            moleculeList[k].append(valuedict)
+        else:
+            moleculeList[k] = [valuedict]
+######            
+
+    return moleculeList
 
 
 # download exotic (cross-section) only data from HITRAN

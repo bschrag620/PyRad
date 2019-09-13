@@ -360,7 +360,7 @@ class Isotope(list):
 
 
 class Molecule(list):
-    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance, xscOnly=false):
+    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, xscOnly=False, **abundance):
         super(Molecule, self).__init__(self)
         self.layer = layer
         self.crossSection = np.copy(layer.crossSection)
@@ -368,6 +368,7 @@ class Molecule(list):
         self.concText = ''
         self.concentration = 0
         self.xscOnly = xscOnly
+        
         try:
             int(shortNameOrMolNum)
             self.ID = int(shortNameOrMolNum)
@@ -375,12 +376,15 @@ class Molecule(list):
         except ValueError:
             self.name = shortNameOrMolNum
             self.ID = MOLECULE_ID[self.name]
+        
         for isotope in getGlobalIsotope(self.ID, isotopeDepth):
             isoClass = Isotope(isotope, self)
             self.append(isoClass)
             if not self.name:
                 self.name = isoClass.shortName
+        
         self.progressCrossSection = False
+        
         for key in abundance:
             if key == 'ppm':
                 self.setPPM(abundance[key])
