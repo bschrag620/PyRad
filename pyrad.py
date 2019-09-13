@@ -1,3 +1,6 @@
+###code.interact(local=dict(globals(), **locals()))
+
+
 import os
 import pyradUtilities as utils
 import pyradLineshape as ls
@@ -5,7 +8,8 @@ import pyradIntensity
 import pyradPlanck
 import numpy as np
 import matplotlib.pyplot as plt
-import pyradInteractive
+import code
+#import pyradInteractive
 
 
 c = 299792458.0
@@ -187,22 +191,25 @@ class Line:
 class Isotope(list):
     def __init__(self, number, molecule):
         super(Isotope, self).__init__(self)
-        params = utils.readMolParams(number)
-        self.globalIsoNumber = params[0]
-        self.shortName = params[1]
-        self.name = 'Isotope %s' % self.globalIsoNumber
-        self.molNum = params[2]
-        self.isoN = params[3]
-        self.abundance = params[4]
-        self.q296 = params[5]
-        self.gj = params[6]
-        self.molmass = params[7]
-        self.molecule = molecule
-        self.layer = self.molecule.layer
-        self.q = {}
-        self.crossSection = np.copy(self.layer.crossSection)
-        self.lineSurvey = np.zeros(int((self.layer.rangeMax - self.layer.rangeMin) / utils.BASE_RESOLUTION))
-        self.progressCrossSection = False
+        if number in EXOTIC_IDS:
+            print('creating dummy iso')
+        else:
+            params = utils.readMolParams(number)
+            self.globalIsoNumber = params[0]
+            self.shortName = params[1]
+            self.name = 'Isotope %s' % self.globalIsoNumber
+            self.molNum = params[2]
+            self.isoN = params[3]
+            self.abundance = params[4]
+            self.q296 = params[5]
+            self.gj = params[6]
+            self.molmass = params[7]
+            self.molecule = molecule
+            self.layer = self.molecule.layer
+            self.q = {}
+            self.crossSection = np.copy(self.layer.crossSection)
+            self.lineSurvey = np.zeros(int((self.layer.rangeMax - self.layer.rangeMin) / utils.BASE_RESOLUTION))
+            self.progressCrossSection = False
 
     @property
     def P(self):
@@ -363,27 +370,9 @@ class Molecule(list):
     def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, xscOnly=False, **abundance):
         super(Molecule, self).__init__(self)
         self.layer = layer
-        self.crossSection = np.copy(layer.crossSection)
-        self.isotopeDepth = isotopeDepth
         self.concText = ''
         self.concentration = 0
         self.xscOnly = xscOnly
-        
-        try:
-            int(shortNameOrMolNum)
-            self.ID = int(shortNameOrMolNum)
-            self.name = False
-        except ValueError:
-            self.name = shortNameOrMolNum
-            self.ID = MOLECULE_ID[self.name]
-        
-        for isotope in getGlobalIsotope(self.ID, isotopeDepth):
-            isoClass = Isotope(isotope, self)
-            self.append(isoClass)
-            if not self.name:
-                self.name = isoClass.shortName
-        
-        self.progressCrossSection = False
         
         for key in abundance:
             if key == 'ppm':
@@ -396,6 +385,68 @@ class Molecule(list):
                 self.setConcentration(abundance[key])
             else:
                 print('Invalid concentration type. Use ppm, ppb, percentage, or concentration.')
+
+
+        if type(shortNameOrMolNum) is dict:
+            name = list(shortNameOrMolNum.keys())[0]
+            index = list(shortNameOrMolNum.values())[0]
+
+            targetKey = list(EXOTIC_IDS[name].keys())[index]
+            filename = targetKey + '.txt'
+            crossSectionData = utils.processXscFile(name, filename)
+            layerData = utils.parseXscFileName(filename)
+            
+            rangeMin = float(layerData['RANGE'].split('-')[0])
+            rangeMax = float(layerData['RANGE'].split('-')[1])
+            temp = int(float(layerData['TEMP']))
+
+            pressure = float(layerData['PRESSURE']) / 0.75006
+            lowRes = float(layerData['RES'])
+            code.interact(local=dict(globals(), **locals()))
+            self.name = name
+
+            dummyIso = Isotope(name, self)
+
+            self.exotic = True
+            
+            if rangeMin != self.layer.rangeMin or rangeMax != self.layer.rangeMax:
+                self.layer.changeRange(rangeMin, rangeMax)
+            if temp != self.layer.T:
+                self.layer.changeTemperature(temp)
+            if pressure != self.layer.P:
+                self.layer.changePressure(pressure)
+
+            crossSection = interpolateArray(self.xAxis, crossSectionData['xAxis'], crossSectionData['yAxis'])
+            
+            dummyIso.crossSection = crossSection
+            dummyIso.progressCrossSection = True
+
+            self.crossSection = crossSection
+
+            self.progressCrossSection = True
+
+        else:
+            self.isotopeDepth = isotopeDepth
+            self.crossSection = np.copy(layer.crossSection)
+
+            try:
+                int(shortNameOrMolNum)
+                self.ID = int(shortNameOrMolNum)
+                self.name = False
+            except ValueError:
+                self.name = shortNameOrMolNum
+                self.ID = MOLECULE_ID[self.name]
+            
+            for isotope in getGlobalIsotope(self.ID, isotopeDepth):
+                isoClass = Isotope(isotope, self)
+                self.append(isoClass)
+                if not self.name:
+                    self.name = isoClass.shortName
+            
+            self.progressCrossSection = False
+            self.exotic = False
+        
+
 
     def __str__(self):
         return '%s: %s' % (self.name, self.concText)
@@ -626,10 +677,12 @@ class Layer(list):
 
     def addMolecule(self, name, isotopeDepth=1, **abundance):
         molecule = Molecule(name, self, isotopeDepth, **abundance)
+
         self.append(molecule)
         if totalConcentration(self) > 1:
             print('**Warning : Concentrations exceed 1.')
-        molecule.getData()
+        if not molecule.exotic:
+            molecule.getData()
         return molecule
 
     def returnCopy(self):
@@ -889,9 +942,7 @@ MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
                'cf4': 42, 'c4h2': 43, 'hc3n': 44, 'h2': 45,
                'cs': 46, 'so3': 47, 'c2n2': 48, 'cocl2': 49}
 
-CFC_IDS = {
-    
-}
+EXOTIC_IDS = utils.returnXscTemperaturePressureValues()
 
 
 

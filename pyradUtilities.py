@@ -1,3 +1,4 @@
+import code
 import os
 import sys
 import urllib.request as urlrequest
@@ -543,10 +544,9 @@ def returnXscTemperaturePressureValues():
     return returnDict
 
 
-def returnXscFileContents(filename):
-    targetFile = targetDir + '/' + filename
+def returnXscFileContents(filepath):
 
-    lines = openReturnLines(targetFile)
+    lines = openReturnLines(filepath)
     results = {}
     for line in lines:
         try:
@@ -561,15 +561,17 @@ def returnXscFileContents(filename):
     return results
 
 
-def processXscFile(filename):
-    results = returnXscFileContents(filename)
+def processXscFile(directory, filename):
+    filepath = xscDir + '/' + directory + '/' + filename
+
+    results = returnXscFileContents(filepath)
 
     if results == {}:
         print('error processing file: "%s"' % filename)
         logToFile('error processing file: "%s"' % filename)
         return False
     else:
-        [rangeMinMax, molName, temp, pressure, res] = parseXscFileName(filename)
+        parsedDict = parseXscFileName(filename)
         xAxis = []
         yAxis = []
 
@@ -581,7 +583,7 @@ def processXscFile(filename):
         return {
             'xAxis': xAxis,
             'yAxis': np.asarray(yAxis),
-            'res': float(res)
+            'res': float(parsedDict['RES'])
         }
 
 RES_MULTIPLIER = 1

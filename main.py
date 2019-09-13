@@ -1,3 +1,4 @@
+import code
 import pyrad
 
 """
@@ -34,15 +35,17 @@ Questions or bugs, email brad.schrag@gmail.com
 layer1 = pyrad.Layer(100, 280, 1013.25, 500, 800, name='layer1')
 co2 = layer1.addMolecule(2, percentage=10, isotopeDepth=1)
 
+cfc = layer1.addMolecule({'CFC-11': 3}, percentage=10)
+
 
 #layer2 = pyrad.Layer(1000, 300, 1013.25, 500, 800, name='h2o: 1%')
 #h2o = layer2.addMolecule('h2o', percentage=1)
 
-layer3 = pyrad.Layer(1000, 300, 1013.25, 500, 700, name='layer3')
 #n2o = layer1.addMolecule('n2o', ppb=350)
 
-#pyrad.plot('optical depth', layer3.title, [layer1, co2, n2o])
-pyrad.plotSpectrum(layer=layer1, spectrumList=[layer1.transmission(320)], planckTemperatureList=[280, 320])
+pyrad.plot('transmittance', layer1.title, [layer1, co2, cfc])
+#pyrad.plotSpectrum(layer=layer1, spectrumList=[layer1.transmission(320)], planckTemperatureList=[280, 320])
+
 
 """
 MOLECULE_ID = {'h2o': 1, 'co2': 2, 'o3': 3, 'n2o': 4, 'co': 5,
