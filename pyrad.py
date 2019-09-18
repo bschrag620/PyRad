@@ -159,6 +159,25 @@ def interpolateArray(hiResXAxis, loResXAxis, loResYValues):
     return hiResY
 
 
+def mergeArray(newXAxis, oldXAxis, oldYValues):
+    newX = newXAxis.tolist()
+    oldX = oldXAxis.tolist()
+    oldY = oldYValues.tolist()
+    newY = []
+
+    newX = list(map(lambda x: round(x, 2), newX))
+    oldX = list(map(lambda x: round(x, 2), oldX))
+
+    for x in newX:
+        if x not in oldX:
+            newY.append(0)
+        else:
+            i = oldX.index(x)
+            newY.append(oldY[i])
+
+    return np.asarray(newY)
+
+
 class Line:
     def __init__(self, wavenumber, intensity, einsteinA, airHalfWidth,
                  selfHalfWidth, lowerEnergy, tempExponent, pressureShift, parent):
@@ -191,9 +210,12 @@ class Line:
 class Isotope(list):
     def __init__(self, number, molecule):
         super(Isotope, self).__init__(self)
-        if number in EXOTIC_IDS:
-            print('creating dummy iso')
-        else:
+
+        self.molecule = molecule        
+        self.layer = self.molecule.layer
+        self.crossSection = np.copy(self.layer.crossSection)
+
+        if number not in EXOTIC_IDS:            
             params = utils.readMolParams(number)
             self.globalIsoNumber = params[0]
             self.shortName = params[1]
@@ -204,10 +226,7 @@ class Isotope(list):
             self.q296 = params[5]
             self.gj = params[6]
             self.molmass = params[7]
-            self.molecule = molecule
-            self.layer = self.molecule.layer
             self.q = {}
-            self.crossSection = np.copy(self.layer.crossSection)
             self.lineSurvey = np.zeros(int((self.layer.rangeMax - self.layer.rangeMin) / utils.BASE_RESOLUTION))
             self.progressCrossSection = False
 
@@ -367,12 +386,11 @@ class Isotope(list):
 
 
 class Molecule(list):
-    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, xscOnly=False, **abundance):
+    def __init__(self, shortNameOrMolNum, layer, isotopeDepth=1, **abundance):
         super(Molecule, self).__init__(self)
         self.layer = layer
         self.concText = ''
         self.concentration = 0
-        self.xscOnly = xscOnly
         
         for key in abundance:
             if key == 'ppm':
@@ -402,22 +420,22 @@ class Molecule(list):
 
             pressure = float(layerData['PRESSURE']) / 0.75006
             lowRes = float(layerData['RES'])
-            code.interact(local=dict(globals(), **locals()))
             self.name = name
 
             dummyIso = Isotope(name, self)
 
             self.exotic = True
             
-            if rangeMin != self.layer.rangeMin or rangeMax != self.layer.rangeMax:
-                self.layer.changeRange(rangeMin, rangeMax)
             if temp != self.layer.T:
                 self.layer.changeTemperature(temp)
             if pressure != self.layer.P:
                 self.layer.changePressure(pressure)
 
-            crossSection = interpolateArray(self.xAxis, crossSectionData['xAxis'], crossSectionData['yAxis'])
-            
+            xAxis = np.arange(rangeMin, rangeMax, .01)
+
+            tempCrossSection = interpolateArray(xAxis, crossSectionData['wavenumber'], crossSectionData['intensity'])
+
+            crossSection = mergeArray(np.arange(self.layer.rangeMin, self.layer.rangeMax, .01), xAxis, tempCrossSection)
             dummyIso.crossSection = crossSection
             dummyIso.progressCrossSection = True
 
