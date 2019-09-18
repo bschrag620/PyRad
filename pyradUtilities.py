@@ -654,7 +654,6 @@ def returnXscTemperaturePressureValues():
 
 
 def returnXscFileContents(filepath):
-
     lines = openReturnLines(filepath)
     results = {'wavenumber': [], 'intensity': []}
     if lines is False:
@@ -690,6 +689,15 @@ def processXscFile(directory, filename):
             'intensity': results['intensity'],
             'res': float(parsedDict['RES'])
         }
+
+
+def returnXscFilesInDirectory(directory):
+    directoryPath = xscDir + '/' + directory
+
+    if os.path.isdir(directoryPath):
+        return os.listdir(directoryPath)
+    else:
+        return False
 
 
 def interpolateArray(hiResXAxis, loResXAxis, loResYValues):
