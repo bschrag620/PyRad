@@ -1,3 +1,4 @@
+###code.interact(local=dict(globals(), **locals()))
 import code
 import os
 import sys
@@ -486,12 +487,116 @@ def returnListOfXscMolecules():
     return os.listdir(xscDir)
 
 
+def changeResFolder(folderName):
+    folderPath = xscDir + '/' + folderName
+    files = os.listdir(folderPath)
+    for file in files:
+        filepath = folderPath + '/' + file
+        changeResXscFile(filepath)
+        os.remove(filepath)
+
+
+def changeResXscFile(filepath):
+    contents = returnXscFileContents(filepath)
+    fileProps = parseXscFileName(os.path.basename(filepath))
+
+    rangeMin = float(fileProps['RANGE'].split('-')[0])
+    rangeMax = float(fileProps['RANGE'].split('-')[1])
+    temp = float(fileProps['TEMP'])
+    pressure = float(fileProps['PRESSURE'])
+    molName = fileProps['MOLECULE_SHORT_NAME']
+    broadener = fileProps['BROADENER']
+    i = fileProps['ID']
+    res = BASE_RESOLUTION
+    hiResX = np.arange(rangeMin, rangeMax, BASE_RESOLUTION)
+    lowResX = np.asarray(contents['wavenumber'])
+    lowResY = np.asarray(contents['intensity'])
+
+    hiResY = interpolateArray(hiResX, lowResX, lowResY)
+    pathToFolder = os.path.dirname(filepath)
+    writeXscFile(hiResX, hiResY, rangeMin, rangeMax, temp, pressure, molName, pathToFolder, broadener, i)
+
+
+def writeXscFile(wavenumbers, crossSection, rangeMin, rangeMax, temp, pressure, molName, pathToFolder, broadener, i):
+    filename = "%s_%sK-%sTorr_%s-%s_%s_%s_%s.txt" % (molName, temp, pressure, rangeMin, rangeMax, BASE_RESOLUTION, broadener, i.replace('-', '_'))
+    file = open(pathToFolder + '/' + filename, 'wb')
+    file.write('# pyrad adjusted cross-section file'.encode('utf-8'))
+    for w, c in zip(wavenumbers, crossSection):
+        strLine = '%s     %s\n' % (w, c)
+        file.write(strLine.encode('utf-8'))
+
+    file.close()
+    print('%s successfully created.' % filename)
+
+
+def mergeXsc(folder):
+    targetDir = xscDir + '/' + folder
+    files = os.listdir(targetDir)
+    mergeDict = {}
+    for file in files:
+        fileProps = parseXscFileName(file)
+        key = fileProps['MOLECULE_SHORT_NAME'] + '_' + fileProps['TEMP'] + 'K-' + fileProps['PRESSURE'] + 'Torr'
+        if key not in mergeDict:
+            fileList = returnMatchingXsc(folder, float(fileProps['TEMP']), float(fileProps['PRESSURE']), float(fileProps['RES']))
+            mergeDict[key] = fileList
+
+    for k, files in mergeDict.items():
+        rangeMins = []
+        rangeMaxes = []
+        wavenumbers = []
+        intensities = []
+        resolutions = []
+
+        for file in files:
+            fileProps = parseXscFileName(file)
+            rangeMins.append(float(fileProps['RANGE'].split('-')[0]))
+            rangeMaxes.append(float(fileProps['RANGE'].split('-')[1]))
+            resolutions.append(float(fileProps['RES']))
+            crossSectionData = processXscFile(folder, file)
+            wavenumbers.append(crossSectionData['wavenumber'])
+            intensities.append(crossSectionData['intensity'])
+
+        newRangeMin = min(rangeMins)
+        newRangeMax = max(rangeMaxes)
+        resolution = resolutions[0]
+
+        for res in resolutions:
+            if res != resolution:
+                print('resolutions are mismatched, can not merge.')
+                return False
+
+        newWavenumbers = np.arange(newRangeMin, newRangeMax, resolution)
+        newCrossSection = np.zeros(len(newWavenumbers))
+
+        for w, i in zip(wavenumbers, intensities):
+            newCrossSection += mergeArray(newWavenumbers, w, i)
+
+        writeXscFile(newWavenumbers, newCrossSection, 
+            newRangeMin, newRangeMax, 
+            float(fileProps['TEMP']), float(fileProps['PRESSURE']), 
+                fileProps['MOLECULE_SHORT_NAME'], targetDir, 
+                fileProps['BROADENER'], fileProps['ID'])
+
+
+
+def returnMatchingXsc(folder, temp, pressure, res):
+    targetDir = xscDir + '/' + folder
+    files = os.listdir(targetDir)
+    matches = []
+    for file in files:
+        fileProps = parseXscFileName(file)
+        if float(fileProps['TEMP']) == temp and float(fileProps['PRESSURE']) == pressure and float(fileProps['RES']):
+            matches.append(file)
+    return matches            
+
 def parseXscFileName(file):
     filename = re.sub('.txt', '', file)
 
     def returnMatch(match, testString):
         if match.search(testString):
             return match.search(testString).group(0)
+        print('Could not find match:', match)
+        print('String:', testString)
         return False
 
     tempMatch = re.compile('[0-9.]*(?=K)')
@@ -499,13 +604,17 @@ def parseXscFileName(file):
     molNameMatch = re.compile('^[A-Za-z0-9]*')
     rangeMatch = re.compile('(?<=_)[0-9.]*-[0-9.]*(?=_)')
     resMatch = re.compile('(?<=_)[0-9]{1,}.[0-9]{1,}(?=_)')
-
+    broadenerMatch = re.compile('(?<=_)[A-Za-z0-9]*(?=_[0-9]*_[0-9]*$)')
+    idMatch = re.compile('(?<=_)[0-9]*_[0-9]*$')
+    
     return {
         'RANGE': returnMatch(rangeMatch, filename), 
         'MOLECULE_SHORT_NAME': returnMatch(molNameMatch, filename), 
         'TEMP': returnMatch(tempMatch, filename), 
         'PRESSURE': returnMatch(pressureMatch, filename), 
-        'RES': returnMatch(resMatch, filename)}
+        'RES': returnMatch(resMatch, filename),
+        'ID': returnMatch(idMatch, filename).replace('_', '-'),
+        'BROADENER': returnMatch(broadenerMatch, filename)}
 
 
 def returnXscTemperaturePressureValues():
@@ -547,12 +656,15 @@ def returnXscTemperaturePressureValues():
 def returnXscFileContents(filepath):
 
     lines = openReturnLines(filepath)
-    results = {}
+    results = {'wavenumber': [], 'intensity': []}
+    if lines is False:
+        print('Could not open:', filepath)
+        return False
     for line in lines:
         try:
-            print(line)
-            [wavenumber, lineIntensity] = re.compile("[ ]*").split(line.strip())
-            results[float(wavenumber)] = float(lineIntensity)
+            [wavenumber, intensity] = re.compile("[ ]+").split(line.strip())
+            results['wavenumber'].append(float(wavenumber))
+            results['intensity'].append(float(intensity))
         except:
             print('line skipped, check log file for details')
             logToFile('error splitting line in file: "%s"' % targetFile)
@@ -572,19 +684,42 @@ def processXscFile(directory, filename):
         return False
     else:
         parsedDict = parseXscFileName(filename)
-        xAxis = []
-        yAxis = []
-
-        orderedKeys = sorted(list(results.keys()))
-        for wn in orderedKeys:
-            xAxis.append(wn)
-            yAxis.append(results[wn])
 
         return {
-            'xAxis': xAxis,
-            'yAxis': np.asarray(yAxis),
+            'wavenumber': results['wavenumber'],
+            'intensity': results['intensity'],
             'res': float(parsedDict['RES'])
         }
+
+
+def interpolateArray(hiResXAxis, loResXAxis, loResYValues):
+    hiResY = np.interp(hiResXAxis, loResXAxis, loResYValues)
+    return hiResY
+
+
+def mergeArray(newX, oldX, oldY):
+    if type(newX).__name__ != 'list':
+        newX = newX.tolist()
+    
+    if type(oldX).__name__ != 'list':
+        oldX = oldX.tolist()
+
+    if type(oldY).__name__ != 'list':
+        oldY = oldY.tolist()
+    newY = []
+
+    newX = list(map(lambda x: round(x, 2), newX))
+    oldX = list(map(lambda x: round(x, 2), oldX))
+
+    for x in newX:
+        if x not in oldX:
+            newY.append(0)
+        else:
+            i = oldX.index(x)
+            newY.append(oldY[i])
+
+    return np.asarray(newY)
+
 
 RES_MULTIPLIER = 1
 BASE_RESOLUTION = .01 * RES_MULTIPLIER
