@@ -618,7 +618,7 @@ def parseXscFileName(file):
 
 
 def returnXscTemperaturePressureValues():
-    targetDirs = list(filter(lambda dir: os.path.isdir(xscDir + '/' + dir), os.listdir(xscDir)))
+    targetDirs = list(filter(lambda d: os.path.isdir(xscDir + '/' + d), os.listdir(xscDir)))
     returnDict = {}
     for directory in targetDirs:
         targetDir =  xscDir + '/' + directory
