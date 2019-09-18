@@ -433,12 +433,29 @@ def menuEditParamsOrComp(layer):
 
 
 def menuMain():
-    createLayerEntry = Entry("Create new gas cell", nextFunction=createLayer, functionParams=genericAtmosphere)
-    editLayerEntry = Entry("Edit/duplicate gas cell", nextFunction=menuChooseLayerToEdit)
-    plotLayerEntry = Entry("Plot gas cell", nextFunction=menuChoosePlotType)
-    planckPlotEntry = (Entry('Plot planck curves', nextFunction=menuPlanckType))
-    mainMenu = Menu('Main menu', [createLayerEntry, editLayerEntry, plotLayerEntry, planckPlotEntry])
+    entries = []
+    entries.append(Entry("Create new gas cell", nextFunction=createLayer, functionParams=genericAtmosphere))
+    if len(genericAtmosphere) > 0:
+        entries.append(Entry("Add xsc to layer", nextFunction=addXscToLayer, functionParams=genericAtmosphere))
+
+    entries.append(Entry("Edit/duplicate gas cell", nextFunction=menuChooseLayerToEdit))
+    entries.append(Entry("Plot gas cell", nextFunction=menuChoosePlotType))
+    entries.append(Entry('Plot planck curves', nextFunction=menuPlanckType))
+    mainMenu = Menu('Main menu', entries)
     mainMenu.displayMenu()
+    return
+
+
+def addXscToLayer(atm):
+    entries = []
+    for layer in atm:
+        entries.append(Entry(layer.name, nextFunction="Select xsc", functionParams=layer))
+    Menu('Add xsc', entries).displayMenu()
+    return
+
+
+def selectXsc(layer):
+
     return
 
 
@@ -623,3 +640,4 @@ COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc', 'concentration']
 
 while True:
     menuMain()
+Slow and ste
