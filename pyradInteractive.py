@@ -1,3 +1,5 @@
+###code.interact(local=dict(globals(), **locals()))
+import code
 import pyrad
 import pyradUtilities as util
 import re
@@ -9,17 +11,22 @@ genericAtmosphere = pyrad.Atmosphere('holding atm for pyrad interactive')
 
 
 class Menu:
-    def __init__(self, title, entries, previousMenu=None, menuParams=None):
+    def __init__(self, title, entries, previousMenu=None, menuParams=None, hint=None):
         self.title = title
         self.entries = entries
         self.previousMenu = previousMenu
         self.menuParams = menuParams
+        self.hint = hint
 
     def displayMenu(self):
         titleStr = '\t' + self.title
         while len(titleStr) < 60:
             titleStr += ' '
         print('\n%s' % util.underlineCyan(titleStr))
+        
+        if self.hint:
+            print(self.hint)
+
         i = 1
         validEntry = ['x']
         for entry in self.entries:
@@ -449,12 +456,34 @@ def menuMain():
 def addXscToLayer(atm):
     entries = []
     for layer in atm:
-        entries.append(Entry(layer.name, nextFunction="Select xsc", functionParams=layer))
-    Menu('Add xsc', entries).displayMenu()
+        entries.append(Entry(layer.name, nextFunction=selectXscMolecule, functionParams=layer))
+    menu = Menu('Choose layer to add cross-section to', entries)
+    menu.displayMenu()
     return
 
 
-def selectXsc(layer):
+def selectXscMolecule(layer):
+    entries = []
+    for xsc in XSC_LIST:
+        entries.append(Entry(xsc, nextFunction=selectXscFile, functionParams={'layer': layer, 'xsc': xsc}))
+    entries.append(Entry('Manually enter molecule name based on HITRAN list', nextFunction=inputXscName, functionParams=layer))
+    menu = Menu('Choose xsc from list', entries, hint='Full list is available at https://hitran.org/data/suppl/xsec/cross_section_data/')
+    menu.displayMenu()
+    return
+
+
+def selectXscFile(params):
+    layer = params['layer']
+    xsc = params['xsc']
+    files = util.returnXscFilesInDirectory(xsc)
+
+    code.interact(local=dict(globals(), **locals()))
+    
+    return
+
+
+def inputXscName(layer):
+
 
     return
 
@@ -637,7 +666,9 @@ PRESSURE_UNITS = ['atm', 'bar', 'mbar', 'pa']
 TEMPERATURE_UNITS = ['K', 'C', 'F']
 RANGE_UNITS = ['um', 'cm-1']
 COMPOSITION_UNITS = ['ppm', 'ppb', '%', 'percentage', 'perc', 'concentration']
+XSC_LIST = ['CFC-11', 'CFC-12', 'CFC-13', 'CFC-113', 'CFC-113a', 'CFC-114', 'CFC-114a', 'CFC-115',
+            'HCFC-21', 'HCFC-22', 'HCFC-123', 'HCFC-123a', 'HCFC-124', 'HCFC-141b', 'HCFC-142b', 'HCFC-225ca', 'HCFC-225cb',
+            'HFC-32', 'HFC-125', 'HFC-134', 'HFC-134a', 'HFC-143a', 'HFC-152a', 'HFE-356mff2']
 
 while True:
     menuMain()
-Slow and ste
