@@ -165,6 +165,11 @@ def editComposition(molecule):
     return inputMoleculeComposition(molecule, default=molecule.concText)
 
 
+def addXscToLayer(params):
+    code.interact(local=dict(globals(), **locals()))
+    comp = inputMoleculeComposition()
+    return
+
 def inputLayerDepth(default=None):
     if not default:
         default = 10
@@ -443,7 +448,7 @@ def menuMain():
     entries = []
     entries.append(Entry("Create new gas cell", nextFunction=createLayer, functionParams=genericAtmosphere))
     if len(genericAtmosphere) > 0:
-        entries.append(Entry("Add xsc to layer", nextFunction=addXscToLayer, functionParams=genericAtmosphere))
+        entries.append(Entry("Add xsc to layer", nextFunction=menuAddXscToLayer, functionParams=genericAtmosphere))
 
     entries.append(Entry("Edit/duplicate gas cell", nextFunction=menuChooseLayerToEdit))
     entries.append(Entry("Plot gas cell", nextFunction=menuChoosePlotType))
@@ -453,16 +458,16 @@ def menuMain():
     return
 
 
-def addXscToLayer(atm):
+def menuAddXscToLayer(atm):
     entries = []
     for layer in atm:
-        entries.append(Entry(layer.name, nextFunction=selectXscMolecule, functionParams=layer))
+        entries.append(Entry(layer.name, nextFunction=menuSelectXscMolecule, functionParams=layer))
     menu = Menu('Choose layer to add cross-section to', entries)
     menu.displayMenu()
     return
 
 
-def selectXscMolecule(layer):
+def menuSelectXscMolecule(layer):
     entries = []
     for xsc in XSC_LIST:
         entries.append(Entry(xsc, nextFunction=selectXscFile, functionParams={'layer': layer, 'xsc': xsc}))
@@ -475,10 +480,21 @@ def selectXscMolecule(layer):
 def selectXscFile(params):
     layer = params['layer']
     xsc = params['xsc']
+    entries = []
     files = util.returnXscFilesInDirectory(xsc)
-
-    code.interact(local=dict(globals(), **locals()))
-    
+    if files is False or files == []:
+        question = "Either that directory doesn't exist or it was empty. Would you like to try downloading the data from HITRAN?"
+        if receiveInput(question, validYorN):
+            filepath = util.downloadXscZipFile(xsc)
+            util.unzipFile(filepath)
+            selectXscFile(params)
+        else:
+            return
+    else:
+        for file in files:
+            entries.append(Entry(file, nextFunction=addXscToLayer, functionParams={'layer': layer, 'file': file, 'xsc': xsc}))
+        menu = Menu('Choose file to use', entries, hint='Layer P and T will be adjusted according to the xsc file')
+        menu.displayMenu()
     return
 
 
@@ -519,6 +535,16 @@ def receiveMultiInput(inputText, validInputFunction, default=None):
                 testInput = False
         if testInput:
             return inputList
+
+
+def validYorN(userInput):
+    if not userInput:
+        return False
+    if userInput.strip().lower()[0] == 'y' or userInput.strip().lower()[0] == 'n':
+        return userInput
+    else:
+        print('Invalid option. Please type "%s" or "%s"' % (util.underlineMagenta('y'), util.underlineMagenta('n')))
+        return False
 
 
 def validMoleculeName(userInput):
