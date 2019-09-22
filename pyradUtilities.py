@@ -267,6 +267,10 @@ def unzipFile(filepath, folderName=False):
     with zipfile.ZipFile(filepath, 'r') as zipr:
         zipr.extractall(folderPath)
 
+    print('Interpolating files to standard res of .01cm-1 ...')
+    for file in os.listdir(folderPath):
+        changeResXscFile(folderPath + '/' + file)
+
 
 def returnDictFromCSV(filepath, headers):
     entries = {}
@@ -333,12 +337,13 @@ def downloadXscZipFile(filename):
     openfile = open(targetFile, 'wb')
     i = 0
     while True:
+        i += 1
         chunk = request.read(chunkSize)
         if not chunk:
             break
         openfile.write(chunk)
-        outputText = 'Downloading%s%s' \
-                         % ('.' * i, i * chunkSize)
+        outputText = 'Downloading...%s' \
+                         % (i * chunkSize)
         print(outputText, end='\r', flush=True)
     openfile.close()
     return targetFile
@@ -525,6 +530,7 @@ def changeResXscFile(filepath):
 
     hiResY = interpolateArray(hiResX, lowResX, lowResY)
     pathToFolder = os.path.dirname(filepath)
+    os.remove(filepath)
     writeXscFile(hiResX, hiResY, rangeMin, rangeMax, temp, pressure, molName, pathToFolder, broadener, i)
 
 
@@ -544,6 +550,7 @@ def mergeXsc(folder):
     targetDir = xscDir + '/' + folder
     files = os.listdir(targetDir)
     mergeDict = {}
+    print('Merging common temperature and pressure files...')
     for file in files:
         fileProps = parseXscFileName(file)
         key = fileProps['MOLECULE_SHORT_NAME'] + '_' + fileProps['TEMP'] + 'K-' + fileProps['PRESSURE'] + 'Torr'
@@ -566,6 +573,7 @@ def mergeXsc(folder):
             crossSectionData = processXscFile(folder, file)
             wavenumbers.append(crossSectionData['wavenumber'])
             intensities.append(crossSectionData['intensity'])
+            os.remove(targetDir + '/' + file)
 
         newRangeMin = min(rangeMins)
         newRangeMax = max(rangeMaxes)
@@ -627,7 +635,9 @@ def parseXscFileName(file):
         'PRESSURE': returnMatch(pressureMatch, filename), 
         'RES': returnMatch(resMatch, filename),
         'ID': returnMatch(idMatch, filename).replace('_', '-'),
-        'BROADENER': broadener
+        'BROADENER': broadener,
+        'SHORT_FILENAME': filename,
+        'LONG_FILENAME': filename + '.txt'
         }
 
 
@@ -721,7 +731,6 @@ def interpolateArray(hiResXAxis, loResXAxis, loResYValues):
 
 
 def mergeArray(newX, oldX, oldY):
-    print('Merging arrays...')
     if type(newX).__name__ != 'list':
         newX = newX.tolist()
     
@@ -735,19 +744,60 @@ def mergeArray(newX, oldX, oldY):
     newX = list(map(lambda x: round(x, 2), newX))
     oldX = list(map(lambda x: round(x, 2), oldX))
 
-    for x in newX:
-        print('Merging array...%s/%s' % (x, max(newX)), end='\r')
-        os.sys.stdout.flush()
-        if x not in oldX:
-            newY.append(0)
-        else:
-            i = oldX.index(x)    
-            if i < len(oldY):
-                newY.append(oldY[i])
-            else:
-                newY.append(0)
+    # new x = [2,3,4,5,6,7,8,9,10]
+    # old x = [1, 2, 3, 4]
 
-    print('Merging finished...')
+        #   oldX = [10, 11, 12, 13, 14, 15, 16]
+    #   oldY = [01, 01, 01, 01, 01, 01, 01]
+    #
+    #   newX = [1, 2, 3, 4, 5] *see first if statment
+    #
+    #   newX = [8, 9, 10, 11, 12] *see else
+    #               newXIndex = 2, oldXindex = 0
+    #
+    #   newX = [14, 15, 16, 17, 18]
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    
+    # this test is to eliminate the case that the new x ranges lie completely outside of the old x range
+
+
+    if max(newX) < min(oldX) or min(newX) > max(oldX):
+        # if so, return all 0's
+        return np.zeros(len(newX))
+    else:
+        # we have overlap, set up indexes
+        # start with initial index
+        if min(newX) <= min(oldX):
+            # this case is the new array starting before the old array values
+            newXindex = newX.index(min(oldX))
+            oldXindex = 0
+        else:
+            newXindex = 0
+            oldXindex = oldX.index(min(newX))
+
+        # in similar fashion, set up final indexes
+        if max(newX) >= max(oldX):
+            finalNewIndex = newXindex + len(oldX) - 1
+            finalOldIndex = len(oldX) - 1
+        else:
+            finalNewIndex = len(newX) - 1
+            finalOldIndex = oldXindex + len(newX) - 1
+
+        # now create the initial array with empty 0's
+        newY = [0] * newXindex
+        while oldXindex < finalOldIndex:
+            newY.append(oldY[oldXindex])
+            oldXindex += 1
+
+        #now append 0's, if needed
+        newY += [0] * (len(newX) - finalNewIndex)
+
     return np.asarray(newY)
 
 

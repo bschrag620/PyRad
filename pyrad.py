@@ -179,20 +179,59 @@ def mergeArray(newX, oldX, oldY):
     # new x = [2,3,4,5,6,7,8,9,10]
     # old x = [1, 2, 3, 4]
 
-    for x in newX:
-        print('Merging array...%s/%s' % (x, max(newX)), end='\r')
-        os.sys.stdout.flush()
-        if x not in oldX:
-            newY.append(0)
-        else:
-            i = oldX.index(x)     
-            if i < len(oldY):
-                newY.append(oldY[i])
-            else:
-                newY.append(0)
+        #   oldX = [10, 11, 12, 13, 14, 15, 16]
+    #   oldY = [01, 01, 01, 01, 01, 01, 01]
+    #
+    #   newX = [1, 2, 3, 4, 5] *see first if statment
+    #
+    #   newX = [8, 9, 10, 11, 12] *see else
+    #               newXIndex = 2, oldXindex = 0
+    #
+    #   newX = [14, 15, 16, 17, 18]
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    
+    # this test is to eliminate the case that the new x ranges lie completely outside of the old x range
 
-    print('Merging finished...')
+
+    if max(newX) < min(oldX) or min(newX) > max(oldX):
+        # if so, return all 0's
+        return np.zeros(len(newX))
+    else:
+        # we have overlap, set up indexes
+        # start with initial index
+        if min(newX) <= min(oldX):
+            # this case is the new array starting before the old array values
+            newXindex = newX.index(min(oldX))
+            oldXindex = 0
+        else:
+            newXindex = 0
+            oldXindex = oldX.index(min(newX))
+
+        # in similar fashion, set up final indexes
+        if max(newX) >= max(oldX):
+            finalNewIndex = newXindex + len(oldX) - 1
+            finalOldIndex = len(oldX) - 1
+        else:
+            finalNewIndex = len(newX) - 1
+            finalOldIndex = oldXindex + len(newX) - 1
+
+        # now create the initial array with empty 0's
+        newY = [0] * newXindex
+        while oldXindex < finalOldIndex:
+            newY.append(oldY[oldXindex])
+            oldXindex += 1
+
+        #now append 0's, if needed
+        newY += [0] * (len(newX) - finalNewIndex)
+
     return np.asarray(newY)
+
 
 
 class Line:

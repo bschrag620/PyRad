@@ -24,20 +24,24 @@ class Menu:
             titleStr += ' '
         print('\n%s' % util.underlineCyan(titleStr))
         
-        if self.hint:
-            print(self.hint)
-
         i = 1
         validEntry = ['x']
         for entry in self.entries:
-            validEntry.append(str(i))
-            print(' %s)   %s' % (util.magentaText(i), entry.name))
+            if entry.selectionKey:
+                validEntry.append(entry.selectionKey.lower())
+                print(' %s)   %s' % (util.magentaText(entry.selectionKey.upper()), entry.name))
+            else:
+                validEntry.append(str(i))
+                print(' %s)   %s' % (util.magentaText(i), entry.name))
             i += 1
         if 'Main' not in self.title:
             print(' %s   Previous menu' % util.magentaText('B)'))
             validEntry.append('b')
         print(' %s   Exit' % util.magentaText('X)'))
         validChoice = False
+        if self.hint:
+            print(util.limeText('**' + self.hint))
+
         while not validChoice:
             userInput = input('Choose an option: ')
             if userInput.lower() == 'x':
@@ -46,7 +50,12 @@ class Menu:
             elif userInput.lower() == 'b' and 'Main' not in self.title:
                 return
             elif userInput in validEntry:
-                userChoice = self.entries[int(userInput) - 1]
+                try:
+                    userChoice = self.entries[int(userInput) - 1]
+                except ValueError:
+                    # this means the user entered a letter but it is in the valid choices
+                    # roll through the entries to find the matching choice
+                    userChoice = next(filter(lambda x: x.selectionKey and x.selectionKey.lower() == userInput.lower(), self.entries))
                 if userChoice.nextFunction:
                     userChoice.nextFunction(userChoice.functionParams)
                     validChoice = True
@@ -58,12 +67,13 @@ class Menu:
 
 
 class Entry:
-    def __init__(self, text, nextMenu=None, nextFunction=None, functionParams=None, previousMenu=None):
+    def __init__(self, text, nextMenu=None, nextFunction=None, functionParams=None, previousMenu=None, selectionKey=False):
         self.name = text
         self.nextMenu = nextMenu
         self.nextFunction = nextFunction
         self.functionParams = functionParams
         self.previousMenu = previousMenu
+        self.selectionKey = selectionKey
 
 
 def createPlot(params):
@@ -100,9 +110,14 @@ def createMolecule(layer):
     addMoleculeLoop = True
     while addMoleculeLoop:
         moleculeName = inputMoleculeName()
-        concentration, units = inputMoleculeComposition()
-        tempdict = {units: concentration}
-        molecule = layer.addMolecule(moleculeName, **tempdict)
+        if moleculeName in XSC_LIST:
+            params = {'layer': layer,
+                        'xsc': moleculeName}
+            selectXscFile(params)
+        else:
+            concentration, units = inputMoleculeComposition()
+            tempdict = {units: concentration}
+            molecule = layer.addMolecule(moleculeName, **tempdict)
         while pyrad.totalConcentration(layer) > 1:
             print("%s total concentration exceeds 100%%" % util.magentaText('***\tWARNING\t***'))
             menuEditComposition(layer)
@@ -166,7 +181,6 @@ def editComposition(molecule):
 
 
 def addXscToLayer(params):
-    code.interact(local=dict(globals(), **locals()))
     layer = params['layer']
     xsc = params['xsc']
     file = params['file']
@@ -284,9 +298,10 @@ def inputMoleculeName(default=None):
         default = 'co2'
     text = 'Enter the short molecule name.\t\t\t'
     moleculeName = receiveInput('%s\n'
-                                'For a full list of options, type %s . If no value given, %s will be used: '
+                                'For a full list of options, type %s. For a list of cross-section only molecules, type %s. If no value given, %s will be used: '
                                 % (util.underlineCyan(text),
                                    util.magentaText('help'),
+                                   util.magentaText('xsc'),
                                    util.limeText(default)), validMoleculeName, default=default)
     return moleculeName
 
@@ -452,9 +467,6 @@ def menuEditParamsOrComp(layer):
 def menuMain():
     entries = []
     entries.append(Entry("Create new gas cell", nextFunction=createLayer, functionParams=genericAtmosphere))
-    if len(genericAtmosphere) > 0:
-        entries.append(Entry("Add xsc to layer", nextFunction=menuAddXscToLayer, functionParams=genericAtmosphere))
-
     entries.append(Entry("Edit/duplicate gas cell", nextFunction=menuChooseLayerToEdit))
     entries.append(Entry("Plot gas cell", nextFunction=menuChoosePlotType))
     entries.append(Entry('Plot planck curves', nextFunction=menuPlanckType))
@@ -485,27 +497,41 @@ def menuSelectXscMolecule(layer):
 def selectXscFile(params):
     layer = params['layer']
     xsc = params['xsc']
+
+    if 'sort' not in params:
+        params['sort'] = 'TEMP'
+    sort = params['sort']
     entries = []
-    files = util.returnXscFilesInDirectory(xsc)
-    if files is False or files == []:
+    unsortedFiles = util.returnXscFilesInDirectory(xsc)
+    if unsortedFiles is False or unsortedFiles == []:
         question = "Either that directory doesn't exist or it was empty. Would you like to try downloading the data from HITRAN?"
-        if receiveInput(question, validYorN):
+        if receiveInput(question, validYorN) == 'y':
             filepath = util.downloadXscZipFile(xsc)
             util.unzipFile(filepath)
+            util.mergeXsc(xsc)
             selectXscFile(params)
         else:
             return
     else:
-        for file in files:
-            entries.append(Entry(file, nextFunction=addXscToLayer, functionParams={'layer': layer, 'file': file, 'xsc': xsc}))
+        unsortedValues = list(map(lambda file: util.parseXscFileName(file), unsortedFiles))
+        if sort == 'TEMP':
+            sortedValues = sorted(unsortedValues, key = lambda i: (float(i['TEMP']), float(i['PRESSURE'])))
+        elif sort == 'PRESSURE':
+            sortedValues = sorted(unsortedValues, key = lambda i: (float(i['PRESSURE']), float(i['TEMP'])))
+        for v in sortedValues:
+            if sort == 'TEMP':
+                displayName = 'Temp: %s  -- Pressure: %s  --  Range: %s' % (util.limeText(v['TEMP'] + 'K'), util.cyanText(v['PRESSURE'] + 'Torr'), util.magentaText(v['RANGE'] + 'cm-1'))
+            elif sort == 'PRESSURE':
+                displayName = 'Pressure: %s  -- Temp: %s  --  Range: %s' % (util.cyanText(v['PRESSURE'] + 'Torr'), util.limeText(v['TEMP'] + 'K'), util.magentaText(v['RANGE'] + 'cm-1'))
+            entries.append(Entry(displayName, nextFunction=addXscToLayer, functionParams={'layer': layer, 'file': v['LONG_FILENAME'], 'xsc': xsc}))
+        pressureParams = params.copy()
+        pressureParams.update({'sort': 'PRESSURE'})
+        entries.append(Entry('Sort by pressure', nextFunction=selectXscFile, functionParams=pressureParams, selectionKey='P'))
+        tempParams = params.copy()
+        tempParams.update({'sort': 'TEMP'})
+        entries.append(Entry('Sort by temperature', nextFunction=selectXscFile, functionParams=tempParams, selectionKey='T'))
         menu = Menu('Choose file to use', entries, hint='Layer P and T will be adjusted according to the xsc file')
         menu.displayMenu()
-    return
-
-
-def inputXscName(layer):
-
-
     return
 
 
@@ -558,7 +584,11 @@ def validMoleculeName(userInput):
     if userInput.strip().lower() == 'help':
         util.displayAllMolecules()
         return False
-    elif userInput in pyrad.MOLECULE_ID:
+    elif userInput.strip().lower() == 'xsc':
+        print(util.underlineMagenta('Punctuation matters...'))
+        print(', '.join(XSC_LIST))
+        return False
+    elif userInput in pyrad.MOLECULE_ID or userInput in XSC_LIST:
         return userInput
     else:
         print('Invalid molecule name. %s' % (util.underlineMagenta('Please try again.')))
