@@ -495,11 +495,17 @@ def menuSelectXscMolecule(layer):
 
 
 def selectXscFile(params):
+    def relevanceScore(layerT, layerP, fileT, fileP, weightedT=1, weightedP=1.1):
+        tDiff = abs(layerT - fileT) * weightedT
+        pDiff = abs(layerP - fileP) * weightedP
+        total = tDiff + pDiff
+        return total
+
     layer = params['layer']
     xsc = params['xsc']
 
     if 'sort' not in params:
-        params['sort'] = 'TEMP'
+        params['sort'] = 'RELEVANT_P'
     sort = params['sort']
     entries = []
     unsortedFiles = util.returnXscFilesInDirectory(xsc)
@@ -513,15 +519,30 @@ def selectXscFile(params):
         else:
             return
     else:
+        hintText = "Layer P and T will be adjusted according to the xsc file"
+
         unsortedValues = list(map(lambda file: util.parseXscFileName(file), unsortedFiles))
         if sort == 'TEMP':
             sortedValues = sorted(unsortedValues, key = lambda i: (float(i['TEMP']), float(i['PRESSURE'])))
+            sortedValues.reverse()
+            hintText += '\nCurrently sorted by temperature with largest values at bottom'
         elif sort == 'PRESSURE':
             sortedValues = sorted(unsortedValues, key = lambda i: (float(i['PRESSURE']), float(i['TEMP'])))
+            sortedValues.reverse()
+            hintText += '\nCurrently sorted by pressure with largest values at bottom'
+        elif sort == 'RELEVANT_P':
+            sortedValues = sorted(unsortedValues, key = lambda i: (relevanceScore(layer.T, layer.P, float(i['TEMP']), float(i['PRESSURE']) * 1.31579)))
+            sortedValues.reverse()
+            hintText += '\nCurrently sorted closest minimizing pressure difference, with closest match at bottom'
+        elif sort == 'RELEVANT_T':
+            sortedValues = sorted(unsortedValues, key = lambda i: (relevanceScore(layer.T, layer.P, float(i['TEMP']), float(i['PRESSURE']) * 1.31579, weightedP=1, weightedT=1.1)))
+            hintText += '\nCurrently sorted closest minimizing temperature difference, with closest match at bottom'
+            sortedValues.reverse()
+
         for v in sortedValues:
-            if sort == 'TEMP':
+            if sort == 'TEMP' or sort == 'RELEVANT_T':
                 displayName = 'Temp: %s  -- Pressure: %s  --  Range: %s' % (util.limeText(v['TEMP'] + 'K'), util.cyanText(v['PRESSURE'] + 'Torr'), util.magentaText(v['RANGE'] + 'cm-1'))
-            elif sort == 'PRESSURE':
+            elif sort == 'PRESSURE' or sort == 'RELEVANT_P':
                 displayName = 'Pressure: %s  -- Temp: %s  --  Range: %s' % (util.cyanText(v['PRESSURE'] + 'Torr'), util.limeText(v['TEMP'] + 'K'), util.magentaText(v['RANGE'] + 'cm-1'))
             entries.append(Entry(displayName, nextFunction=addXscToLayer, functionParams={'layer': layer, 'file': v['LONG_FILENAME'], 'xsc': xsc}))
         pressureParams = params.copy()
@@ -530,7 +551,13 @@ def selectXscFile(params):
         tempParams = params.copy()
         tempParams.update({'sort': 'TEMP'})
         entries.append(Entry('Sort by temperature', nextFunction=selectXscFile, functionParams=tempParams, selectionKey='T'))
-        menu = Menu('Choose file to use', entries, hint='Layer P and T will be adjusted according to the xsc file')
+        tempParams = params.copy()
+        tempParams.update({'sort': 'RELEVANT_T'})
+        entries.append(Entry('Sort by closest temperature', nextFunction=selectXscFile, functionParams=tempParams, selectionKey='minT'))
+        tempParams = params.copy()
+        tempParams.update({'sort': 'RELEVANT_P'})
+        entries.append(Entry('Sort by closest pressure', nextFunction=selectXscFile, functionParams=tempParams, selectionKey='minP'))
+        menu = Menu('Choose file to use', entries, hint=hintText)
         menu.displayMenu()
     return
 
