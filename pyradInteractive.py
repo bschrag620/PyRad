@@ -167,7 +167,12 @@ def editComposition(molecule):
 
 def addXscToLayer(params):
     code.interact(local=dict(globals(), **locals()))
-    comp = inputMoleculeComposition()
+    layer = params['layer']
+    xsc = params['xsc']
+    file = params['file']
+    concentration, units = inputMoleculeComposition()
+    tempdict = {units: concentration}
+    layer.addMolecule({xsc: file}, **tempdict)
     return
 
 def inputLayerDepth(default=None):

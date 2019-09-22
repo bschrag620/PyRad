@@ -32,10 +32,10 @@ also a choice to set fill=False if you prefer to see just the outline.
 Questions or bugs, email brad.schrag@gmail.com
 """
 
-layer1 = pyrad.Layer(100, 280, 1013.25, 500, 800, name='layer1')
-co2 = layer1.addMolecule(2, percentage=10, isotopeDepth=1)
+layer1 = pyrad.Layer(10, 280, 1013.25, 500, 1300, name='layer1')
+#co2 = layer1.addMolecule(2, percentage=10, isotopeDepth=1)
 
-cfc = layer1.addMolecule({'CFC-11': 3}, percentage=10)
+cfc = layer1.addMolecule({'CFC-11': 4}, percentage=10)
 
 
 #layer2 = pyrad.Layer(1000, 300, 1013.25, 500, 800, name='h2o: 1%')
@@ -43,7 +43,7 @@ cfc = layer1.addMolecule({'CFC-11': 3}, percentage=10)
 
 #n2o = layer1.addMolecule('n2o', ppb=350)
 
-pyrad.plot('transmittance', layer1.title, [layer1, co2, cfc])
+pyrad.plot('transmittance', layer1.title, [layer1, cfc])
 #pyrad.plotSpectrum(layer=layer1, spectrumList=[layer1.transmission(320)], planckTemperatureList=[280, 320])
 
 

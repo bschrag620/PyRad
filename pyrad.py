@@ -9,7 +9,7 @@ import pyradPlanck
 import numpy as np
 import matplotlib.pyplot as plt
 import code
-#import pyradInteractive
+import pyradInteractive
 
 
 c = 299792458.0
@@ -36,8 +36,10 @@ def getCrossSection(obj):
 
 
 def resetCrossSection(obj):
-    obj.crossSection = np.zeros(int((obj.rangeMax - obj.rangeMin) / utils.BASE_RESOLUTION))
-    obj.progressCrossSection = False
+    if not isinstance(obj, Layer):
+        if not obj.exotic:
+            obj.crossSection = np.zeros(int((obj.rangeMax - obj.rangeMin) / utils.BASE_RESOLUTION))
+            obj.progressCrossSection = False
     for child in obj:
         if not isinstance(child, Line):
             resetCrossSection(child)
@@ -155,26 +157,41 @@ def convertTemperature(value, units):
 
 
 def interpolateArray(hiResXAxis, loResXAxis, loResYValues):
+    print('Interpolating arrays...')
     hiResY = np.interp(hiResXAxis, loResXAxis, loResYValues)
     return hiResY
 
 
-def mergeArray(newXAxis, oldXAxis, oldYValues):
-    newX = newXAxis.tolist()
-    oldX = oldXAxis.tolist()
-    oldY = oldYValues.tolist()
+def mergeArray(newX, oldX, oldY):
+    if type(newX).__name__ != 'list':
+        newX = newX.tolist()
+    
+    if type(oldX).__name__ != 'list':
+        oldX = oldX.tolist()
+
+    if type(oldY).__name__ != 'list':
+        oldY = oldY.tolist()
+    
     newY = []
 
     newX = list(map(lambda x: round(x, 2), newX))
     oldX = list(map(lambda x: round(x, 2), oldX))
+    # new x = [2,3,4,5,6,7,8,9,10]
+    # old x = [1, 2, 3, 4]
 
     for x in newX:
+        print('Merging array...%s/%s' % (x, max(newX)), end='\r')
+        os.sys.stdout.flush()
         if x not in oldX:
             newY.append(0)
         else:
-            i = oldX.index(x)
-            newY.append(oldY[i])
+            i = oldX.index(x)     
+            if i < len(oldY):
+                newY.append(oldY[i])
+            else:
+                newY.append(0)
 
+    print('Merging finished...')
     return np.asarray(newY)
 
 
@@ -214,6 +231,7 @@ class Isotope(list):
         self.molecule = molecule        
         self.layer = self.molecule.layer
         self.crossSection = np.copy(self.layer.crossSection)
+        self.exotic = molecule.exotic
 
         if number not in EXOTIC_IDS:            
             params = utils.readMolParams(number)
@@ -391,6 +409,7 @@ class Molecule(list):
         self.layer = layer
         self.concText = ''
         self.concentration = 0
+        self.exotic = False
         
         for key in abundance:
             if key == 'ppm':
@@ -407,10 +426,11 @@ class Molecule(list):
 
         if type(shortNameOrMolNum) is dict:
             name = list(shortNameOrMolNum.keys())[0]
-            index = list(shortNameOrMolNum.values())[0]
+            filename = list(shortNameOrMolNum.values())[0]
 
-            targetKey = list(EXOTIC_IDS[name].keys())[index]
-            filename = targetKey + '.txt'
+            if type(filename) == int:
+                targetKey = list(EXOTIC_IDS[name].keys())[filename]
+                filename = targetKey + '.txt'
             crossSectionData = utils.processXscFile(name, filename)
             layerData = utils.parseXscFileName(filename)
             
@@ -433,14 +453,16 @@ class Molecule(list):
 
             xAxis = np.arange(rangeMin, rangeMax, .01)
 
-            tempCrossSection = interpolateArray(xAxis, crossSectionData['wavenumber'], crossSectionData['intensity'])
+            if lowRes > .01:
+                tempCrossSection = interpolateArray(xAxis, crossSectionData['wavenumber'], crossSectionData['intensity'])
+            else:
+                tempCrossSection = crossSectionData['intensity']
 
-            crossSection = mergeArray(np.arange(self.layer.rangeMin, self.layer.rangeMax, .01), xAxis, tempCrossSection)
+            crossSection = mergeArray(self.layer.xAxis, xAxis, tempCrossSection)
             dummyIso.crossSection = crossSection
             dummyIso.progressCrossSection = True
 
             self.crossSection = crossSection
-
             self.progressCrossSection = True
 
         else:

@@ -318,19 +318,30 @@ def downloadExoticTable():
 
 
 def downloadXscZipFile(filename):
+    filename += (".zip" if ".zip" not in filename else '')
     url = 'https://hitran.org/suppl/xsec/cross_section_data/%s' % filename
     print('Downloading cross-section zipfile: %s' % url)
     targetDir = xscDir
     targetFile = targetDir + '/' + filename
+    if os.path.isfile(targetFile):
+        c = input('File exists. Re-download (y/n)? ')
+        if c.strip().lower() == 'n':
+            return targetFile
+
     request = urlrequest.urlopen(url)
     chunkSize = 1024 * 64
     openfile = open(targetFile, 'wb')
+    i = 0
     while True:
         chunk = request.read(chunkSize)
         if not chunk:
             break
         openfile.write(chunk)
+        outputText = 'Downloading%s%s' \
+                         % ('.' * i, i * chunkSize)
+        print(outputText, end='\r', flush=True)
     openfile.close()
+    return targetFile
 
 
 # downloads q table from hitran
@@ -595,8 +606,6 @@ def parseXscFileName(file):
     def returnMatch(match, testString):
         if match.search(testString):
             return match.search(testString).group(0)
-        print('Could not find match:', match)
-        print('String:', testString)
         return False
 
     tempMatch = re.compile('[0-9.]*(?=K)')
@@ -606,7 +615,11 @@ def parseXscFileName(file):
     resMatch = re.compile('(?<=_)[0-9]{1,}.[0-9]{1,}(?=_)')
     broadenerMatch = re.compile('(?<=_)[A-Za-z0-9]*(?=_[0-9]*_[0-9]*$)')
     idMatch = re.compile('(?<=_)[0-9]*_[0-9]*$')
-    
+
+    broadener = returnMatch(broadenerMatch, filename)
+    if not broadener:
+        broadener = ''
+
     return {
         'RANGE': returnMatch(rangeMatch, filename), 
         'MOLECULE_SHORT_NAME': returnMatch(molNameMatch, filename), 
@@ -614,7 +627,8 @@ def parseXscFileName(file):
         'PRESSURE': returnMatch(pressureMatch, filename), 
         'RES': returnMatch(resMatch, filename),
         'ID': returnMatch(idMatch, filename).replace('_', '-'),
-        'BROADENER': returnMatch(broadenerMatch, filename)}
+        'BROADENER': broadener
+        }
 
 
 def returnXscTemperaturePressureValues():
@@ -648,7 +662,7 @@ def returnXscTemperaturePressureValues():
                 print('error parsing values')
                 logToFile('error parsing filename: "%s"' % file)
                 logToFile('|---> rangeMinMax: %s, temp: %s, pressure: %s, res: %s, filename: %s' % 
-                    (parsedDict['RANGE'], parsedDict['TEMP'], parsedDict['PRESSURE'], parsedDict['RES'], file + '.txt'))
+                    (parsedDict['RANGE'], parsedDict['TEMP'], parsedDict['PRESSURE'], parsedDict['RES'], file))
     
     return returnDict
 
@@ -701,11 +715,13 @@ def returnXscFilesInDirectory(directory):
 
 
 def interpolateArray(hiResXAxis, loResXAxis, loResYValues):
+    print('Interpolating arrays...')
     hiResY = np.interp(hiResXAxis, loResXAxis, loResYValues)
     return hiResY
 
 
 def mergeArray(newX, oldX, oldY):
+    print('Merging arrays...')
     if type(newX).__name__ != 'list':
         newX = newX.tolist()
     
@@ -720,12 +736,18 @@ def mergeArray(newX, oldX, oldY):
     oldX = list(map(lambda x: round(x, 2), oldX))
 
     for x in newX:
+        print('Merging array...%s/%s' % (x, max(newX)), end='\r')
+        os.sys.stdout.flush()
         if x not in oldX:
             newY.append(0)
         else:
-            i = oldX.index(x)
-            newY.append(oldY[i])
+            i = oldX.index(x)    
+            if i < len(oldY):
+                newY.append(oldY[i])
+            else:
+                newY.append(0)
 
+    print('Merging finished...')
     return np.asarray(newY)
 
 
