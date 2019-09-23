@@ -1,6 +1,6 @@
 ###code.interact(local=dict(globals(), **locals()))
 import code
-import pyrad
+import pyradClasses as pyrad
 import pyradUtilities as util
 import re
 import pyradPlanck
