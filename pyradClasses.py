@@ -1,5 +1,5 @@
 ###code.interact(local=dict(globals(), **locals()))
-
+#!/usr/bin/env python3
 
 import os
 import pyradUtilities as utils
